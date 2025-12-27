@@ -79,7 +79,7 @@ class DynamicSpectrumAccessEnv:
         self.channel_usage_history = np.zeros((self.seq_length, self.num_channels))
 
         # Reset device actions
-        self.device_actions = np.zeros((self.num_devices, num_channels))
+        self.device_actions = np.zeros((self.num_devices, self.num_channels))
 
         # Reset statistics
         self.total_throughput = 0

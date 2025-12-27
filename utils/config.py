@@ -12,6 +12,7 @@ class ModelConfig:
     """Model architecture configuration."""
     hidden_dim: int = 256
     num_lfm_layers: int = 2
+    num_lstm_layers: int = 2
     num_heads: int = 4
     use_moe: bool = False
 
@@ -67,6 +68,7 @@ class TrainingConfig:
     log_interval: int = 1
     checkpoint_dir: str = 'checkpoints'
     log_dir: str = 'logs'
+    results_dir: str = 'results'
 
 
 def load_config(config_path: Optional[str] = None) -> TrainingConfig:
@@ -100,7 +102,7 @@ def load_config(config_path: Optional[str] = None) -> TrainingConfig:
     )
 
     # Update top-level fields
-    for key in ['device', 'seed', 'save_interval', 'eval_interval', 'log_interval', 'checkpoint_dir', 'log_dir']:
+    for key in ['device', 'seed', 'save_interval', 'eval_interval', 'log_interval', 'checkpoint_dir', 'log_dir', 'results_dir']:
         if key in config_dict:
             setattr(training_config, key, config_dict[key])
 
