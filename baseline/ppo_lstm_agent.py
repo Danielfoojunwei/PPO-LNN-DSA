@@ -203,7 +203,10 @@ class RolloutBufferLSTM:
         rewards = torch.tensor(self.rewards, dtype=torch.float32)
         dones = torch.tensor(self.dones, dtype=torch.float32)
 
-        values = torch.cat([values, last_value.unsqueeze(0)])
+        # Ensure last_value has the right shape
+        if last_value.dim() == 0:
+            last_value = last_value.unsqueeze(0)
+        values = torch.cat([values, last_value])
 
         for t in reversed(range(len(rewards))):
             delta = rewards[t] + gamma * values[t + 1] * (1 - dones[t]) - values[t]
