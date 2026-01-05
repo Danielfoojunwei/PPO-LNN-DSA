@@ -10,6 +10,13 @@ from .double_dqn import (
     ReplayBuffer,
 )
 
+from .ppo_lstm import (
+    PPOLSTMAgent,
+    PPOLSTMPolicy,
+    PPOLSTMTrainer,
+    LSTMEncoder,
+)
+
 __all__ = [
     "DoubleDQNAgent",
     "DoubleDQNConfig",
@@ -18,4 +25,8 @@ __all__ = [
     "RandomAgent",
     "GreedyAgent",
     "ReplayBuffer",
+    "PPOLSTMAgent",
+    "PPOLSTMPolicy",
+    "PPOLSTMTrainer",
+    "LSTMEncoder",
 ]
