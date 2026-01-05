@@ -274,7 +274,7 @@ class CodecV1(MessageCodec):
     To be implemented when Libiao provides actual protocol documentation.
     """
 
-    MAGIC = 0xLB
+    MAGIC = 0x4C42  # "LB" in ASCII
     VERSION = 0x01
     HEADER_SIZE = 12
     CRC_SIZE = 2

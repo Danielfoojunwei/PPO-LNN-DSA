@@ -475,3 +475,9 @@ class LBAPWorld:
             ch_id for ch_id, ch in self.channels.items()
             if ch.robot_count >= threshold
         ]
+
+    def get_channel_load(self, channel: int) -> int:
+        """Get robot count for a specific channel."""
+        if channel in self.channels:
+            return self.channels[channel].robot_count
+        return 0
