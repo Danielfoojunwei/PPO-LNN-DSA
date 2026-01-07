@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-WiFi 7 (802.11be) vs WiFi 7 + PPO-LTC Comprehensive Benchmark
+WiFi 7 (802.11be) Comprehensive Benchmark: Standard vs LSTM vs DDQN vs LTC
 
 This benchmark compares:
 1. Standard WiFi 7 (using 802.11be default mechanisms)
-2. WiFi 7 + PPO-LTC (intelligent dt-aware channel selection)
+2. WiFi 7 + PPO-LSTM (recurrent policy network)
+3. WiFi 7 + DDQN (Double DQN with dueling architecture)
+4. WiFi 7 + PPO-LTC (intelligent dt-aware channel selection)
 
 WiFi 7 Features Simulated:
 - Multi-Link Operation (MLO) with up to 3 links
@@ -38,6 +40,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from preceptual.baselines.ppo_lnn import PPOLTCAgent, PPOLNNAgent
 from preceptual.baselines.ppo_lstm import PPOLSTMAgent
+from preceptual.baselines.double_dqn import DoubleDQNAgent, DoubleDQNConfig
 
 
 class TrafficType(Enum):
@@ -582,13 +585,20 @@ def train_and_evaluate(
 
             # Store transition
             if hasattr(agent, 'store_transition'):
-                if isinstance(agent, (PPOLTCAgent, PPOLNNAgent)):
+                if isinstance(agent, DoubleDQNAgent):
+                    # DDQN uses (state, action, reward, next_state, done)
+                    agent.store_transition(state, action, reward, next_state, done)
+                elif isinstance(agent, (PPOLTCAgent, PPOLNNAgent)):
                     agent.store_transition(state, action, log_prob, value, reward, done, dt=dt)
                 else:
                     try:
                         agent.store_transition(state, action, log_prob, value, reward, done, dt=dt)
                     except TypeError:
-                        agent.store_transition(state, action, log_prob, value, reward, done)
+                        try:
+                            agent.store_transition(state, action, log_prob, value, reward, done)
+                        except TypeError:
+                            # Fallback for other interfaces
+                            agent.store_transition(state, action, reward, next_state, done)
 
             episode_reward += reward
             state = next_state
@@ -641,10 +651,10 @@ def train_and_evaluate(
 def run_benchmark():
     """Run comprehensive WiFi 7 vs WiFi 7 + PPO-LTC benchmark"""
 
-    print("=" * 100)
-    print("COMPREHENSIVE BENCHMARK: WiFi 7 (Standard) vs WiFi 7 + PPO-LTC")
-    print("Testing when dt-aware LTC agents provide benefit over standard WiFi 7 mechanisms")
-    print("=" * 100)
+    print("=" * 120)
+    print("COMPREHENSIVE BENCHMARK: WiFi 7 Standard vs PPO-LSTM vs DDQN vs PPO-LTC")
+    print("Testing when dt-aware LTC agents provide benefit over standard WiFi 7, LSTM, and DDQN baselines")
+    print("=" * 120)
     print()
 
     episodes = 100
@@ -687,6 +697,26 @@ def run_benchmark():
         lstm_metrics = train_and_evaluate(lstm_agent, env, episodes, "wifi7_lstm")
         scenario_results["wifi7_lstm"] = lstm_metrics
 
+        # Test WiFi 7 + DDQN (Double DQN baseline)
+        print("\n  Training WiFi 7 + DDQN...")
+        env.reset()
+        ddqn_config = DoubleDQNConfig(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            hidden_dim=128,
+            learning_rate=3e-4,
+            gamma=0.95,
+            buffer_size=2000,
+            batch_size=64,
+            epsilon_start=1.0,
+            epsilon_end=0.1,
+            epsilon_decay=0.995,
+            target_update_freq=50,
+        )
+        ddqn_agent = DoubleDQNAgent(config=ddqn_config, use_dueling=True, device="cpu")
+        ddqn_metrics = train_and_evaluate(ddqn_agent, env, episodes, "wifi7_ddqn")
+        scenario_results["wifi7_ddqn"] = ddqn_metrics
+
         # Test WiFi 7 + PPO-LTC (our dt-aware agent)
         print("\n  Training WiFi 7 + PPO-LTC...")
         env.reset()
@@ -710,11 +740,11 @@ def run_benchmark():
     print("=" * 100)
 
     # Create comparison tables
-    print("\n" + "-" * 100)
+    print("\n" + "-" * 120)
     print("SUCCESS RATE COMPARISON (Final 10 episodes average)")
-    print("-" * 100)
-    print(f"{'Scenario':<20} {'WiFi7 Std':>12} {'WiFi7+LSTM':>12} {'WiFi7+LTC':>12} {'LTC vs Std':>12} {'LTC vs LSTM':>12} {'dt_cv':>8}")
-    print("-" * 100)
+    print("-" * 120)
+    print(f"{'Scenario':<20} {'WiFi7 Std':>11} {'WiFi7+LSTM':>11} {'WiFi7+DDQN':>11} {'WiFi7+LTC':>11} {'LTC vs Std':>11} {'LTC vs DDQN':>12} {'dt_cv':>8}")
+    print("-" * 120)
 
     ltc_better_scenarios = []
     ltc_not_needed_scenarios = []
@@ -723,68 +753,73 @@ def run_benchmark():
         r = results[scenario.name]
         std = r["wifi7_standard"]["final_success"]
         lstm = r["wifi7_lstm"]["final_success"]
+        ddqn = r["wifi7_ddqn"]["final_success"]
         ltc = r["wifi7_ltc"]["final_success"]
         dt_cv = r["wifi7_ltc"]["avg_dt_cv"]
 
         ltc_vs_std = (ltc - std) * 100
         ltc_vs_lstm = (ltc - lstm) * 100
+        ltc_vs_ddqn = (ltc - ddqn) * 100
 
-        print(f"{scenario.name:<20} {std*100:>11.1f}% {lstm*100:>11.1f}% {ltc*100:>11.1f}% "
-              f"{ltc_vs_std:>+11.1f}% {ltc_vs_lstm:>+11.1f}% {dt_cv:>7.2f}")
+        print(f"{scenario.name:<20} {std*100:>10.1f}% {lstm*100:>10.1f}% {ddqn*100:>10.1f}% {ltc*100:>10.1f}% "
+              f"{ltc_vs_std:>+10.1f}% {ltc_vs_ddqn:>+11.1f}% {dt_cv:>7.2f}")
 
         # Categorize
-        if ltc_vs_std > 2 or ltc_vs_lstm > 2:
-            ltc_better_scenarios.append((scenario.name, ltc_vs_std, ltc_vs_lstm, dt_cv))
-        if ltc_vs_std < 2 and ltc_vs_lstm < 2:
-            ltc_not_needed_scenarios.append((scenario.name, ltc_vs_std, ltc_vs_lstm, dt_cv))
+        if ltc_vs_std > 2 or ltc_vs_ddqn > 2:
+            ltc_better_scenarios.append((scenario.name, ltc_vs_std, ltc_vs_ddqn, dt_cv))
+        if ltc_vs_std < 2 and ltc_vs_ddqn < 2:
+            ltc_not_needed_scenarios.append((scenario.name, ltc_vs_std, ltc_vs_ddqn, dt_cv))
 
     # Throughput comparison
-    print("\n" + "-" * 100)
+    print("\n" + "-" * 120)
     print("THROUGHPUT COMPARISON (transmissions per episode)")
-    print("-" * 100)
-    print(f"{'Scenario':<20} {'WiFi7 Std':>12} {'WiFi7+LSTM':>12} {'WiFi7+LTC':>12} {'LTC Gain':>12}")
-    print("-" * 100)
+    print("-" * 120)
+    print(f"{'Scenario':<20} {'WiFi7 Std':>12} {'WiFi7+LSTM':>12} {'WiFi7+DDQN':>12} {'WiFi7+LTC':>12} {'LTC vs DDQN':>14}")
+    print("-" * 120)
 
     for scenario in scenarios:
         r = results[scenario.name]
         std = r["wifi7_standard"]["final_throughput"]
         lstm = r["wifi7_lstm"]["final_throughput"]
+        ddqn = r["wifi7_ddqn"]["final_throughput"]
         ltc = r["wifi7_ltc"]["final_throughput"]
-        gain = ((ltc - std) / std * 100) if std > 0 else 0
+        gain_vs_ddqn = ((ltc - ddqn) / ddqn * 100) if ddqn > 0 else 0
 
-        print(f"{scenario.name:<20} {std:>12.1f} {lstm:>12.1f} {ltc:>12.1f} {gain:>+11.1f}%")
+        print(f"{scenario.name:<20} {std:>12.1f} {lstm:>12.1f} {ddqn:>12.1f} {ltc:>12.1f} {gain_vs_ddqn:>+13.1f}%")
 
     # Latency comparison
-    print("\n" + "-" * 100)
+    print("\n" + "-" * 120)
     print("LATENCY COMPARISON (ms per decision)")
-    print("-" * 100)
-    print(f"{'Scenario':<20} {'WiFi7 Std':>12} {'WiFi7+LSTM':>12} {'WiFi7+LTC':>12} {'LTC Reduction':>14}")
-    print("-" * 100)
+    print("-" * 120)
+    print(f"{'Scenario':<20} {'WiFi7 Std':>12} {'WiFi7+LSTM':>12} {'WiFi7+DDQN':>12} {'WiFi7+LTC':>12} {'LTC vs DDQN':>14}")
+    print("-" * 120)
 
     for scenario in scenarios:
         r = results[scenario.name]
         std = r["wifi7_standard"]["final_latency"] * 1000
         lstm = r["wifi7_lstm"]["final_latency"] * 1000
+        ddqn = r["wifi7_ddqn"]["final_latency"] * 1000
         ltc = r["wifi7_ltc"]["final_latency"] * 1000
-        reduction = ((std - ltc) / std * 100) if std > 0 else 0
+        reduction_vs_ddqn = ((ddqn - ltc) / ddqn * 100) if ddqn > 0 else 0
 
-        print(f"{scenario.name:<20} {std:>11.2f}ms {lstm:>11.2f}ms {ltc:>11.2f}ms {reduction:>+13.1f}%")
+        print(f"{scenario.name:<20} {std:>11.2f}ms {lstm:>11.2f}ms {ddqn:>11.2f}ms {ltc:>11.2f}ms {reduction_vs_ddqn:>+13.1f}%")
 
     # Training time comparison
-    print("\n" + "-" * 100)
+    print("\n" + "-" * 120)
     print("TRAINING TIME COMPARISON (seconds)")
-    print("-" * 100)
-    print(f"{'Scenario':<20} {'WiFi7 Std':>12} {'WiFi7+LSTM':>12} {'WiFi7+LTC':>12} {'LTC Overhead':>14}")
-    print("-" * 100)
+    print("-" * 120)
+    print(f"{'Scenario':<20} {'WiFi7 Std':>12} {'WiFi7+LSTM':>12} {'WiFi7+DDQN':>12} {'WiFi7+LTC':>12} {'LTC vs DDQN':>14}")
+    print("-" * 120)
 
     for scenario in scenarios:
         r = results[scenario.name]
         std = r["wifi7_standard"]["total_time"]
         lstm = r["wifi7_lstm"]["total_time"]
+        ddqn = r["wifi7_ddqn"]["total_time"]
         ltc = r["wifi7_ltc"]["total_time"]
-        overhead = ((ltc - std) / std * 100) if std > 0 else 0
+        overhead_vs_ddqn = ((ltc - ddqn) / ddqn * 100) if ddqn > 0 else 0
 
-        print(f"{scenario.name:<20} {std:>11.1f}s {lstm:>11.1f}s {ltc:>11.1f}s {overhead:>+13.1f}%")
+        print(f"{scenario.name:<20} {std:>11.1f}s {lstm:>11.1f}s {ddqn:>11.1f}s {ltc:>11.1f}s {overhead_vs_ddqn:>+13.1f}%")
 
     # Key findings
     print("\n" + "=" * 100)
