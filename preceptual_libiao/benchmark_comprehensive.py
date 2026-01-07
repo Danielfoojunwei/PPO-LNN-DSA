@@ -23,7 +23,7 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from preceptual.baselines.ppo_lstm import PPOLSTMAgent
-from preceptual.baselines.ppo_lnn import PPOLNNAgent
+from preceptual.baselines.ppo_lnn import PPOLNNAgent, PPOLTCAgent, PPONCPAgent
 from preceptual.sim.dsa_variable_dt import (
     VariableDTDSAEnvironment as VariableDTDSAEnv,
     DTPattern,
@@ -95,6 +95,7 @@ def train_agent(
         episode_reward = 0
         episode_dts = []
         episode_length = 0
+        episode_successes = 0
 
         done = False
         while not done:
@@ -103,7 +104,7 @@ def train_agent(
 
             # Select action
             if hasattr(agent, 'select_action'):
-                if isinstance(agent, (PPOLNNAgent,)):
+                if isinstance(agent, (PPOLNNAgent, PPOLTCAgent, PPONCPAgent)):
                     action, log_prob, value = agent.select_action(state, dt=dt)
                 else:
                     action, log_prob, value = agent.select_action(state)
@@ -117,21 +118,23 @@ def train_agent(
 
             # Store transition
             if hasattr(agent, 'store_transition'):
-                if isinstance(agent, (PPOLNNAgent,)):
+                if isinstance(agent, (PPOLNNAgent, PPOLTCAgent, PPONCPAgent)):
                     agent.store_transition(state, action, log_prob, value, reward, done, dt=dt)
                 else:
                     agent.store_transition(state, action, log_prob, value, reward, done)
 
             episode_reward += reward
             episode_length += 1
+            if info.get("success", False):
+                episode_successes += 1
             state = next_state
 
         # Update agent
         if hasattr(agent, 'update'):
             agent.update()
 
-        # Collect metrics
-        success_rate = info.get("success_rate", 0.0)
+        # Collect metrics - compute success rate from tracked successes
+        success_rate = episode_successes / max(1, episode_length)
         metrics["success_rates"].append(success_rate)
         metrics["episode_rewards"].append(episode_reward)
         metrics["dt_means"].append(np.mean(episode_dts))
@@ -166,7 +169,7 @@ def run_benchmark(
     }
 
     print("=" * 90)
-    print("COMPREHENSIVE BENCHMARK: PPO-LSTM vs PPO-LNN (ncps CfC)")
+    print("COMPREHENSIVE BENCHMARK: PPO-LSTM vs PPO-LNN (CfC/LTC/NCP)")
     print("Testing Liquid Neural Network advantages in variable time-step environments")
     print("=" * 90)
     print()
@@ -184,7 +187,9 @@ def run_benchmark(
         pattern_results = {
             "random": [],
             "ppo_lstm": [],
-            "ppo_lnn": [],
+            "ppo_lnn_cfc": [],
+            "ppo_lnn_ltc": [],
+            "ppo_lnn_ncp": [],
         }
         if include_lfm:
             pattern_results["ppo_lfm"] = []
@@ -230,22 +235,52 @@ def run_benchmark(
             )
             pattern_results["ppo_lstm"].append(lstm_metrics)
 
-            # PPO-LNN (ncps CfC)
+            # PPO-LNN CfC (Closed-form Continuous-time)
             print("\n    Training PPO-LNN (CfC)...")
-            lnn_agent = PPOLNNAgent(
+            lnn_cfc_agent = PPOLNNAgent(
                 state_dim=state_dim,
                 action_dim=action_dim,
                 hidden_size=config.hidden_size,
                 lr=config.lr,
                 gamma=config.gamma,
                 use_cfc=True,  # Use CfC (faster than LTC)
-                use_ncp_wiring=False,  # Use fully connected (simpler)
+                use_ncp_wiring=False,  # Use fully connected
                 device=config.device,
             )
-            lnn_metrics = train_agent(
-                lnn_agent, env, config.episodes, "ppo_lnn"
+            lnn_cfc_metrics = train_agent(
+                lnn_cfc_agent, env, config.episodes, "ppo_lnn_cfc"
             )
-            pattern_results["ppo_lnn"].append(lnn_metrics)
+            pattern_results["ppo_lnn_cfc"].append(lnn_cfc_metrics)
+
+            # PPO-LNN LTC (Liquid Time-Constant)
+            print("\n    Training PPO-LNN (LTC)...")
+            lnn_ltc_agent = PPOLTCAgent(
+                state_dim=state_dim,
+                action_dim=action_dim,
+                hidden_size=config.hidden_size,
+                lr=config.lr,
+                gamma=config.gamma,
+                device=config.device,
+            )
+            lnn_ltc_metrics = train_agent(
+                lnn_ltc_agent, env, config.episodes, "ppo_lnn_ltc"
+            )
+            pattern_results["ppo_lnn_ltc"].append(lnn_ltc_metrics)
+
+            # PPO-LNN NCP (Neural Circuit Policy wiring)
+            print("\n    Training PPO-LNN (NCP)...")
+            lnn_ncp_agent = PPONCPAgent(
+                state_dim=state_dim,
+                action_dim=action_dim,
+                hidden_size=config.hidden_size,
+                lr=config.lr,
+                gamma=config.gamma,
+                device=config.device,
+            )
+            lnn_ncp_metrics = train_agent(
+                lnn_ncp_agent, env, config.episodes, "ppo_lnn_ncp"
+            )
+            pattern_results["ppo_lnn_ncp"].append(lnn_ncp_metrics)
 
             # PPO-LFM (optional - complex architecture)
             if include_lfm:
@@ -283,7 +318,7 @@ def analyze_results(results: Dict) -> Dict:
     print("RESULTS ANALYSIS")
     print("=" * 90)
 
-    agents = ["random", "ppo_lstm", "ppo_lnn"]
+    agents = ["random", "ppo_lstm", "ppo_lnn_cfc", "ppo_lnn_ltc", "ppo_lnn_ncp"]
     if "ppo_lfm" in results["patterns"].get(list(results["patterns"].keys())[0], {}):
         agents.append("ppo_lfm")
 
@@ -352,15 +387,35 @@ def analyze_results(results: Dict) -> Dict:
                   f"Avg Final={np.mean(all_finals)*100:.2f}%, "
                   f"Avg Improvement={np.mean(all_improvements)*100:+.2f}%")
 
-    # Comparison: LNN vs LSTM
-    if "ppo_lnn" in analysis["summary"] and "ppo_lstm" in analysis["summary"]:
-        lnn_final = analysis["summary"]["ppo_lnn"]["avg_final_success"]
-        lstm_final = analysis["summary"]["ppo_lstm"]["avg_final_success"]
-        delta = lnn_final - lstm_final
+    # Comparison: LNN variants vs LSTM
+    print()
+    print("-" * 50)
+    print("LNN vs LSTM Comparisons:")
 
+    lstm_final = analysis["summary"].get("ppo_lstm", {}).get("avg_final_success", 0.0)
+
+    for lnn_variant in ["ppo_lnn_cfc", "ppo_lnn_ltc", "ppo_lnn_ncp"]:
+        if lnn_variant in analysis["summary"]:
+            lnn_final = analysis["summary"][lnn_variant]["avg_final_success"]
+            delta = lnn_final - lstm_final
+            variant_name = lnn_variant.replace("ppo_lnn_", "").upper()
+            print(f"  PPO-LNN ({variant_name}) vs PPO-LSTM: {delta*100:+.2f}% "
+                  f"({'LNN better' if delta > 0 else 'LSTM better'})")
+
+    # Best LNN variant
+    best_lnn = None
+    best_lnn_final = 0.0
+    for lnn_variant in ["ppo_lnn_cfc", "ppo_lnn_ltc", "ppo_lnn_ncp"]:
+        if lnn_variant in analysis["summary"]:
+            lnn_final = analysis["summary"][lnn_variant]["avg_final_success"]
+            if lnn_final > best_lnn_final:
+                best_lnn = lnn_variant
+                best_lnn_final = lnn_final
+
+    if best_lnn:
         print()
-        print(f"  PPO-LNN vs PPO-LSTM: {delta*100:+.2f}% "
-              f"({'LNN better' if delta > 0 else 'LSTM better'})")
+        variant_name = best_lnn.replace("ppo_lnn_", "").upper()
+        print(f"  BEST LNN VARIANT: {variant_name} (Final Success: {best_lnn_final*100:.2f}%)")
 
     return analysis
 
