@@ -25,6 +25,14 @@ from .ppo_lfm import (
     CfCCell,
 )
 
+from .ppo_lnn import (
+    PPOLNNAgent,
+    PPOLTCAgent,
+    PPONCPAgent,
+    PPOLNNPolicy,
+    LNNEncoder,
+)
+
 __all__ = [
     "DoubleDQNAgent",
     "DoubleDQNConfig",
@@ -42,4 +50,9 @@ __all__ = [
     "LFMBlock",
     "LTCCell",
     "CfCCell",
+    "PPOLNNAgent",
+    "PPOLTCAgent",
+    "PPONCPAgent",
+    "PPOLNNPolicy",
+    "LNNEncoder",
 ]
