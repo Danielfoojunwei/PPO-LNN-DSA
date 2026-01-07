@@ -422,6 +422,7 @@ class PPOLFMAgent:
         num_layers: int = 2,
         lr: float = 3e-4,
         gamma: float = 0.95,
+        gae_lambda: float = 0.95,
         device: str = "cpu",
     ):
         self.device = torch.device(device)
@@ -429,6 +430,7 @@ class PPOLFMAgent:
         self.action_dim = action_dim
         self.hidden_size = hidden_size
         self.gamma = gamma
+        self.gae_lambda = gae_lambda
 
         # LFM encoder (dt-aware)
         self.encoder = LFMEncoder(
@@ -463,6 +465,10 @@ class PPOLFMAgent:
         # Training params
         self.clip_epsilon = 0.2
         self.ppo_epochs = 4
+        self.minibatch_size = 64
+        self.value_coef = 0.5
+        self.entropy_coef = 0.01
+        self.max_grad_norm = 0.5
 
         # State
         self.hidden = None
@@ -555,8 +561,36 @@ class PPOLFMAgent:
         self.buffer["dts"].append(dt if dt is not None else self.last_dt)
         self.total_steps += 1
 
+    def compute_gae(
+        self,
+        rewards: torch.Tensor,
+        values: torch.Tensor,
+        dones: torch.Tensor,
+        next_value: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Compute Generalized Advantage Estimation."""
+        T = len(rewards)
+        advantages = torch.zeros_like(rewards)
+        lastgaelam = 0
+
+        for t in reversed(range(T)):
+            if t == T - 1:
+                next_non_terminal = 1.0 - dones[t].float()
+                next_val = next_value
+            else:
+                next_non_terminal = 1.0 - dones[t].float()
+                next_val = values[t + 1]
+
+            delta = rewards[t] + self.gamma * next_val * next_non_terminal - values[t]
+            advantages[t] = lastgaelam = (
+                delta + self.gamma * self.gae_lambda * next_non_terminal * lastgaelam
+            )
+
+        returns = advantages + values
+        return advantages, returns
+
     def update(self) -> Dict[str, float]:
-        """Update policy with dt-aware rollouts."""
+        """Update policy with dt-aware rollouts using GAE and minibatch training."""
         if len(self.buffer["states"]) < 32:
             return {"loss": 0.0}
 
@@ -569,68 +603,99 @@ class PPOLFMAgent:
         dones = torch.tensor(self.buffer["dones"], dtype=torch.float32).to(self.device)
         dts = torch.tensor(self.buffer["dts"], dtype=torch.float32).to(self.device)
 
-        # Compute returns and advantages
-        returns = torch.zeros_like(rewards)
-        advantages = torch.zeros_like(rewards)
+        # Compute next value for GAE
+        with torch.no_grad():
+            last_state = states[-1:].to(self.device)
+            last_dt = dts[-1:].to(self.device)
+            hidden = self.encoder.init_hidden(1, self.device)
+            encoded, _ = self.encoder(last_state, hidden, last_dt)
+            next_value = self.critic(encoded).squeeze()
 
-        running_return = 0
-        running_advantage = 0
+        # Compute GAE advantages and returns
+        advantages, returns = self.compute_gae(rewards, values, dones, next_value)
 
-        for t in reversed(range(len(rewards))):
-            running_return = rewards[t] + self.gamma * running_return * (1 - dones[t])
-            returns[t] = running_return
-
-            next_val = values[t + 1] if t + 1 < len(values) else 0
-            td_error = rewards[t] + self.gamma * next_val * (1 - dones[t]) - values[t]
-            running_advantage = td_error + self.gamma * 0.95 * running_advantage * (1 - dones[t])
-            advantages[t] = running_advantage
-
+        # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        # PPO update with dt
-        total_loss = 0
+        # PPO update with minibatching
+        total_samples = len(rewards)
+        indices = np.arange(total_samples)
+
+        metrics = {
+            "policy_loss": 0.0,
+            "value_loss": 0.0,
+            "entropy": 0.0,
+            "approx_kl": 0.0,
+        }
+        n_updates = 0
 
         for _ in range(self.ppo_epochs):
-            # Batch processing with per-sample dt values
-            # Key insight: We don't need sequential hidden state for PPO training
-            # Each transition is treated independently but with its own dt
-            hidden = self.encoder.init_hidden(len(states), self.device)
+            np.random.shuffle(indices)
 
-            # Forward pass with batch of states and batch of dts
-            # Each sample in the batch gets its own dt value
-            encoded, _ = self.encoder(states, hidden, dts)
+            for start in range(0, total_samples, self.minibatch_size):
+                end = min(start + self.minibatch_size, total_samples)
+                mb_indices = indices[start:end]
+                mb_size = len(mb_indices)
 
-            logits = self.actor(encoded)
-            new_values = self.critic(encoded).squeeze(-1)
+                mb_states = states[mb_indices]
+                mb_actions = actions[mb_indices]
+                mb_old_log_probs = old_log_probs[mb_indices]
+                mb_advantages = advantages[mb_indices]
+                mb_returns = returns[mb_indices]
+                mb_dts = dts[mb_indices]
 
-            probs = F.softmax(logits, dim=-1)
-            dist = torch.distributions.Categorical(probs)
-            new_log_probs = dist.log_prob(actions)
-            entropy = dist.entropy()
+                # Forward pass with dt-aware encoder
+                hidden = self.encoder.init_hidden(mb_size, self.device)
+                encoded, _ = self.encoder(mb_states, hidden, mb_dts)
 
-            # Policy loss
-            ratio = torch.exp(new_log_probs - old_log_probs)
-            surr1 = ratio * advantages
-            surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * advantages
-            policy_loss = -torch.min(surr1, surr2).mean()
+                logits = self.actor(encoded)
+                new_values = self.critic(encoded).squeeze(-1)
 
-            # Value loss
-            value_loss = F.mse_loss(new_values, returns)
+                probs = F.softmax(logits, dim=-1)
+                dist = torch.distributions.Categorical(probs)
+                new_log_probs = dist.log_prob(mb_actions)
+                entropy = dist.entropy()
 
-            # Total loss
-            loss = policy_loss + 0.5 * value_loss - 0.01 * entropy.mean()
+                # Policy loss with clipping
+                ratio = torch.exp(new_log_probs - mb_old_log_probs)
+                surr1 = ratio * mb_advantages
+                surr2 = torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon) * mb_advantages
+                policy_loss = -torch.min(surr1, surr2).mean()
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                list(self.encoder.parameters()) +
-                list(self.actor.parameters()) +
-                list(self.critic.parameters()),
-                0.5
-            )
-            self.optimizer.step()
+                # Value loss
+                value_loss = F.mse_loss(new_values, mb_returns)
 
-            total_loss += loss.item()
+                # Total loss
+                loss = (
+                    policy_loss +
+                    self.value_coef * value_loss -
+                    self.entropy_coef * entropy.mean()
+                )
+
+                # Optimize
+                self.optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    list(self.encoder.parameters()) +
+                    list(self.actor.parameters()) +
+                    list(self.critic.parameters()),
+                    self.max_grad_norm
+                )
+                self.optimizer.step()
+
+                # Track metrics
+                with torch.no_grad():
+                    approx_kl = (mb_old_log_probs - new_log_probs).mean().item()
+
+                metrics["policy_loss"] += policy_loss.item()
+                metrics["value_loss"] += value_loss.item()
+                metrics["entropy"] += entropy.mean().item()
+                metrics["approx_kl"] += approx_kl
+                n_updates += 1
+
+        # Average metrics
+        for k in metrics:
+            metrics[k] /= max(1, n_updates)
 
         # Record tau statistics for analysis
         with torch.no_grad():
@@ -647,7 +712,7 @@ class PPOLFMAgent:
         for k in self.buffer:
             self.buffer[k] = []
 
-        return {"loss": total_loss / self.ppo_epochs}
+        return metrics
 
     def get_tau_statistics(self) -> Dict[str, float]:
         """Get learned time constant statistics."""
