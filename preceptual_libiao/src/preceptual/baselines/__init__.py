@@ -17,6 +17,14 @@ from .ppo_lstm import (
     LSTMEncoder,
 )
 
+from .ppo_lfm import (
+    PPOLFMAgent,
+    LFMEncoder,
+    LFMBlock,
+    LTCCell,
+    CfCCell,
+)
+
 __all__ = [
     "DoubleDQNAgent",
     "DoubleDQNConfig",
@@ -29,4 +37,9 @@ __all__ = [
     "PPOLSTMPolicy",
     "PPOLSTMTrainer",
     "LSTMEncoder",
+    "PPOLFMAgent",
+    "LFMEncoder",
+    "LFMBlock",
+    "LTCCell",
+    "CfCCell",
 ]
