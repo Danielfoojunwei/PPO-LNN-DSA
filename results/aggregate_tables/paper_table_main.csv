@@ -1,0 +1,50 @@
+Scenario,Model,Reward (mean ± std),Utilization (mean ± std),Collision rate (mean ± std),"Training time, s",Parameters
+stationary,Greedy heuristic,-80.420 ± 1.989,0.082 ± 0.002,0.848 ± 0.008,,0
+stationary,PPO-GRU,-53.967 ± 8.300,0.126 ± 0.021,0.676 ± 0.051,5.014,36425
+stationary,PPO-LFM,-55.240 ± 7.071,0.123 ± 0.017,0.688 ± 0.043,8.72,78409
+stationary,PPO-LSTM,-50.423 ± 3.586,0.135 ± 0.009,0.660 ± 0.020,4.952,44745
+stationary,PPO-LTC,-58.510 ± 6.051,0.113 ± 0.015,0.704 ± 0.036,9.404,44809
+stationary,PPO-LTC-LFM,-48.447 ± 3.667,0.139 ± 0.010,0.645 ± 0.024,13.135,78281
+stationary,PPO-MLP,-53.857 ± 6.312,0.127 ± 0.018,0.677 ± 0.040,4.323,56585
+non_stationary,Greedy heuristic,-78.704 ± 3.400,0.076 ± 0.011,0.834 ± 0.019,,0
+non_stationary,PPO-GRU,-72.179 ± 5.250,0.080 ± 0.013,0.785 ± 0.031,5.216,36425
+non_stationary,PPO-LFM,-68.996 ± 3.588,0.089 ± 0.009,0.767 ± 0.021,8.689,78409
+non_stationary,PPO-LSTM,-71.310 ± 2.746,0.083 ± 0.007,0.781 ± 0.016,4.923,44745
+non_stationary,PPO-LTC,-74.791 ± 2.105,0.077 ± 0.007,0.801 ± 0.010,9.326,44809
+non_stationary,PPO-LTC-LFM,-71.092 ± 6.353,0.083 ± 0.017,0.774 ± 0.036,13.205,78281
+non_stationary,PPO-MLP,-72.253 ± 4.818,0.083 ± 0.012,0.788 ± 0.026,3.79,56585
+interference_heavy,Greedy heuristic,-120.482 ± 4.285,0.057 ± 0.006,0.826 ± 0.017,,0
+interference_heavy,PPO-GRU,-85.405 ± 4.033,0.085 ± 0.008,0.726 ± 0.018,4.942,36425
+interference_heavy,PPO-LFM,-80.279 ± 4.625,0.090 ± 0.007,0.706 ± 0.020,8.891,78409
+interference_heavy,PPO-LSTM,-83.743 ± 4.080,0.083 ± 0.009,0.724 ± 0.017,4.975,44745
+interference_heavy,PPO-LTC,-83.732 ± 10.389,0.084 ± 0.018,0.719 ± 0.055,9.495,44809
+interference_heavy,PPO-LTC-LFM,-82.244 ± 4.024,0.089 ± 0.008,0.707 ± 0.022,12.564,78281
+interference_heavy,PPO-MLP,-80.559 ± 6.084,0.088 ± 0.013,0.707 ± 0.037,3.852,56585
+varying_users_small,Greedy heuristic,-36.765 ± 4.751,0.197 ± 0.013,0.642 ± 0.029,,0
+varying_users_small,PPO-GRU,-37.142 ± 4.794,0.170 ± 0.016,0.584 ± 0.023,4.982,36425
+varying_users_small,PPO-LFM,-29.945 ± 6.808,0.190 ± 0.017,0.542 ± 0.041,8.207,78409
+varying_users_small,PPO-LSTM,-35.902 ± 5.539,0.175 ± 0.016,0.577 ± 0.034,4.71,44745
+varying_users_small,PPO-LTC,-38.528 ± 4.217,0.167 ± 0.011,0.592 ± 0.024,9.441,44809
+varying_users_small,PPO-LTC-LFM,-38.712 ± 3.004,0.170 ± 0.009,0.595 ± 0.016,12.247,78281
+varying_users_small,PPO-MLP,-34.418 ± 4.736,0.176 ± 0.014,0.566 ± 0.027,3.519,56585
+varying_users_large,Greedy heuristic,-115.798 ± 1.844,0.027 ± 0.006,0.948 ± 0.011,,0
+varying_users_large,PPO-GRU,-74.932 ± 3.519,0.083 ± 0.009,0.779 ± 0.019,5.002,36425
+varying_users_large,PPO-LFM,-76.578 ± 3.330,0.077 ± 0.008,0.784 ± 0.020,9.556,78409
+varying_users_large,PPO-LSTM,-74.655 ± 0.836,0.081 ± 0.003,0.782 ± 0.004,4.999,44745
+varying_users_large,PPO-LTC,-71.132 ± 2.901,0.089 ± 0.007,0.756 ± 0.016,9.591,44809
+varying_users_large,PPO-LTC-LFM,-75.264 ± 4.009,0.079 ± 0.008,0.780 ± 0.022,12.006,78281
+varying_users_large,PPO-MLP,-75.731 ± 4.692,0.077 ± 0.012,0.789 ± 0.024,3.803,56585
+noisy_partial,Greedy heuristic,-70.572 ± 4.571,0.091 ± 0.012,0.770 ± 0.027,,0
+noisy_partial,PPO-GRU,-76.506 ± 2.998,0.073 ± 0.008,0.808 ± 0.019,5.032,36425
+noisy_partial,PPO-LFM,-71.812 ± 2.909,0.083 ± 0.004,0.781 ± 0.019,9.093,78409
+noisy_partial,PPO-LSTM,-75.656 ± 3.258,0.074 ± 0.007,0.802 ± 0.020,5.789,44745
+noisy_partial,PPO-LTC,-75.708 ± 2.990,0.075 ± 0.010,0.804 ± 0.016,9.233,44809
+noisy_partial,PPO-LTC-LFM,-72.816 ± 4.727,0.079 ± 0.012,0.788 ± 0.033,13.268,78281
+noisy_partial,PPO-MLP,-73.471 ± 4.197,0.082 ± 0.012,0.792 ± 0.024,3.803,56585
+variable_dt,Greedy heuristic,-93.171 ± 3.384,0.056 ± 0.006,0.889 ± 0.016,,0
+variable_dt,PPO-GRU,-77.648 ± 2.409,0.074 ± 0.005,0.817 ± 0.013,5.354,36425
+variable_dt,PPO-LFM,-73.698 ± 4.395,0.084 ± 0.012,0.794 ± 0.026,8.613,78409
+variable_dt,PPO-LSTM,-80.095 ± 3.899,0.067 ± 0.010,0.832 ± 0.028,4.962,44745
+variable_dt,PPO-LTC,-76.365 ± 3.292,0.080 ± 0.008,0.815 ± 0.017,10.151,44809
+variable_dt,PPO-LTC-LFM,-73.815 ± 3.379,0.086 ± 0.006,0.796 ± 0.021,13.328,78281
+variable_dt,PPO-MLP,-76.897 ± 2.415,0.076 ± 0.008,0.814 ± 0.015,3.818,56585

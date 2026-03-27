@@ -1,0 +1,30 @@
+{
+  "num_runs": 280,
+  "models": [
+    "random_policy",
+    "greedy_heuristic",
+    "ppo_mlp",
+    "ppo_lstm",
+    "ppo_gru",
+    "ppo_ltc",
+    "ppo_lfm",
+    "ppo_ltc_lfm"
+  ],
+  "scenarios": [
+    "stationary",
+    "non_stationary",
+    "interference_heavy",
+    "varying_users_small",
+    "varying_users_large",
+    "noisy_partial",
+    "variable_dt"
+  ],
+  "seeds": [
+    7,
+    19,
+    23,
+    41,
+    89
+  ],
+  "training_steps": 1536
+}

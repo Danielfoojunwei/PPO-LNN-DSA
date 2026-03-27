@@ -1,0 +1,172 @@
+models:
+- random_policy
+- greedy_heuristic
+- ppo_mlp
+- ppo_lstm
+- ppo_gru
+- ppo_ltc
+- ppo_lfm
+- ppo_ltc_lfm
+scenarios:
+- stationary
+- non_stationary
+- interference_heavy
+- varying_users_small
+- varying_users_large
+- noisy_partial
+- variable_dt
+seeds:
+- 7
+- 19
+- 23
+- 41
+- 89
+training_steps: 1536
+eval_every: 512
+eval_episodes: 6
+device: cpu
+hyperparams:
+  learning_rate: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.01
+  max_grad_norm: 0.5
+  update_epochs: 3
+  minibatch_size: 64
+  rollout_steps: 128
+suite_preview:
+  stationary:
+    scenario_name: stationary
+    num_channels: 8
+    num_background_users: 4
+    history_len: 6
+    max_steps: 64
+    sensing_noise: 0.05
+    observation_dropout: 0.0
+    interference_scale: 1.0
+    collision_penalty: 1.25
+    success_reward_scale: 2.0
+    idle_bias: 0.05
+    dt_mode: constant
+    dt_min: 0.5
+    dt_max: 2.0
+    dt_base: 1.0
+    non_stationarity_strength: 0.0
+    fairness_tracking: true
+    seed: 7
+  non_stationary:
+    scenario_name: non_stationary
+    num_channels: 8
+    num_background_users: 4
+    history_len: 6
+    max_steps: 64
+    sensing_noise: 0.05
+    observation_dropout: 0.0
+    interference_scale: 1.0
+    collision_penalty: 1.25
+    success_reward_scale: 2.0
+    idle_bias: 0.05
+    dt_mode: constant
+    dt_min: 0.5
+    dt_max: 2.0
+    dt_base: 1.0
+    non_stationarity_strength: 0.35
+    fairness_tracking: true
+    seed: 7
+  interference_heavy:
+    scenario_name: interference_heavy
+    num_channels: 8
+    num_background_users: 7
+    history_len: 6
+    max_steps: 64
+    sensing_noise: 0.05
+    observation_dropout: 0.0
+    interference_scale: 1.6
+    collision_penalty: 1.25
+    success_reward_scale: 2.0
+    idle_bias: 0.05
+    dt_mode: constant
+    dt_min: 0.5
+    dt_max: 2.0
+    dt_base: 1.0
+    non_stationarity_strength: 0.0
+    fairness_tracking: true
+    seed: 7
+  varying_users_small:
+    scenario_name: stationary
+    num_channels: 8
+    num_background_users: 2
+    history_len: 6
+    max_steps: 64
+    sensing_noise: 0.05
+    observation_dropout: 0.0
+    interference_scale: 1.0
+    collision_penalty: 1.25
+    success_reward_scale: 2.0
+    idle_bias: 0.05
+    dt_mode: constant
+    dt_min: 0.5
+    dt_max: 2.0
+    dt_base: 1.0
+    non_stationarity_strength: 0.0
+    fairness_tracking: true
+    seed: 7
+  varying_users_large:
+    scenario_name: stationary
+    num_channels: 8
+    num_background_users: 8
+    history_len: 6
+    max_steps: 64
+    sensing_noise: 0.05
+    observation_dropout: 0.0
+    interference_scale: 1.0
+    collision_penalty: 1.25
+    success_reward_scale: 2.0
+    idle_bias: 0.05
+    dt_mode: constant
+    dt_min: 0.5
+    dt_max: 2.0
+    dt_base: 1.0
+    non_stationarity_strength: 0.0
+    fairness_tracking: true
+    seed: 7
+  noisy_partial:
+    scenario_name: noisy_partial
+    num_channels: 8
+    num_background_users: 5
+    history_len: 6
+    max_steps: 64
+    sensing_noise: 0.2
+    observation_dropout: 0.15
+    interference_scale: 1.0
+    collision_penalty: 1.25
+    success_reward_scale: 2.0
+    idle_bias: 0.05
+    dt_mode: constant
+    dt_min: 0.5
+    dt_max: 2.0
+    dt_base: 1.0
+    non_stationarity_strength: 0.0
+    fairness_tracking: true
+    seed: 7
+  variable_dt:
+    scenario_name: variable_dt
+    num_channels: 8
+    num_background_users: 5
+    history_len: 6
+    max_steps: 64
+    sensing_noise: 0.05
+    observation_dropout: 0.0
+    interference_scale: 1.0
+    collision_penalty: 1.25
+    success_reward_scale: 2.0
+    idle_bias: 0.05
+    dt_mode: uniform
+    dt_min: 0.2
+    dt_max: 3.0
+    dt_base: 1.0
+    non_stationarity_strength: 0.25
+    fairness_tracking: true
+    seed: 7

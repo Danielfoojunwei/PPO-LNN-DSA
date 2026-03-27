@@ -1,0 +1,12 @@
+{
+  "scenario": "non_stationary",
+  "model": "ppo_ltc_lfm",
+  "seeds": [
+    7
+  ],
+  "modes": [
+    "centralized",
+    "flat_federated",
+    "hierarchical_federated"
+  ]
+}
