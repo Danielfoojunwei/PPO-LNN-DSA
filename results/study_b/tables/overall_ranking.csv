@@ -1,0 +1,11 @@
+model,n_scenarios,mean_eval_return,mean_eval_return_std,mean_eval_return_sem,mean_eval_return_ci_low,mean_eval_return_ci_high,best_scenario,worst_scenario,rank
+greedy_heuristic,2,20.429285,0.916598,0.648132,19.781153,21.077417,irregular_dt,stationary,1
+ppo_cfc,2,-26.105561,1.59562,1.128274,-27.233834,-24.977287,stationary,irregular_dt,2
+ppo_mlp,2,-26.471238,0.277196,0.196007,-26.667245,-26.275231,stationary,irregular_dt,3
+ppo_cfc_dtblind,2,-29.022297,1.858537,1.314184,-30.336481,-27.708113,irregular_dt,stationary,4
+ppo_transformer,2,-33.269018,2.340528,1.655003,-34.924021,-31.614015,stationary,irregular_dt,5
+ppo_gru,2,-34.247901,0.75728,0.535478,-34.783379,-33.712423,stationary,irregular_dt,6
+ppo_ltc,2,-50.85242,1.688776,1.194145,-52.046566,-49.658275,irregular_dt,stationary,7
+random_policy,2,-50.859054,0.060986,0.043123,-50.902177,-50.815931,irregular_dt,stationary,8
+ppo_ltc_cfc,2,-50.884777,0.800217,0.565839,-51.450616,-50.318939,irregular_dt,stationary,9
+constant_channel,2,-51.455492,0.0082,0.005798,-51.46129,-51.449694,irregular_dt,stationary,10

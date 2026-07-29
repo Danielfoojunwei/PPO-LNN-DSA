@@ -1,0 +1,154 @@
+# =============================================================================
+# PRE-REGISTRATION
+# =============================================================================
+# This file declares which comparisons will be tested, and how, BEFORE any
+# confirmatory run is executed.  Its sha256 is recorded in results/manifest.json
+# alongside the git commit that produced the results, so an auditor can verify
+# that the analysis plan was not edited after seeing the numbers.
+#
+# Nothing here selects which rows are DISPLAYED.  Every table in results/tables/
+# contains every policy that ran, baselines included.  These families select
+# only which comparisons are formally TESTED and which multiplicity correction
+# they are corrected within.
+#
+# Changing this file after a confirmatory run invalidates the confirmatory
+# status of that run.  The honest move at that point is to relabel the affected
+# comparisons exploratory, not to re-freeze the file.
+# =============================================================================
+
+version: 1
+analysis_seed: 20260729
+alpha: 0.05
+ci_level: 0.95
+metric: mean_eval_return
+test: two-sided paired sign-flip permutation test
+correction: holm-bonferroni within each declared family
+pairing: >
+  Comparisons are paired by seed.  Environment seeds deliberately exclude the
+  model name, so both arms of every comparison observed byte-identical
+  environment streams for a given (base_seed, scenario).  n_pairs equals the
+  number of seeds in configs/suite.yaml.
+
+# ---------------------------------------------------------------------------
+# The single pre-registered primary comparison.
+# ---------------------------------------------------------------------------
+# P1 is primary because it is the only comparison in this repository whose two
+# arms have identical architecture, identical parameter count, identical
+# initialisation distribution, identical inputs and identical environment
+# streams, and differ solely in whether the elapsed decision interval enters the
+# recurrent state update.  Both arms receive dt as an encoder input feature; only
+# ppo_cfc lets it into the closed-form time gate.  It is the sharpest available
+# test of this repository's thesis and it can come out negative.
+primary_comparison:
+  id: P1
+  description: >
+    Does letting the elapsed decision interval enter the recurrent state update
+    improve dynamic spectrum access under irregular decision intervals?
+  scenario: irregular_dt
+  arm_a: ppo_cfc              # dt enters the CfC closed-form time gate
+  arm_b: ppo_cfc_dtblind      # architecturally identical; dt pinned to 1.0 in-cell
+  metric: mean_eval_return
+  test: two-sided paired exact sign-flip
+  alpha: 0.05
+  direction: two-sided
+
+# ---------------------------------------------------------------------------
+# Confirmatory families.  Holm-Bonferroni is applied WITHIN each family.
+# ---------------------------------------------------------------------------
+families:
+
+  F1_primary:
+    description: The pre-registered primary comparison, reported unadjusted.
+    holm: false
+    kind: model_vs_model
+    comparisons:
+      - id: P1
+        scenario: irregular_dt
+        arm_a: ppo_cfc
+        arm_b: ppo_cfc_dtblind
+
+  F2_continuous_vs_gated:
+    description: >
+      Do continuous-time cells beat a conventional gated RNN of equal parameter
+      budget and equal depth?
+    kind: model_vs_model
+    arms_a: [ppo_ltc, ppo_cfc, ppo_ltc_cfc]
+    arms_b: [ppo_gru]
+    scenarios: primary
+
+  F3_hybrid_decomposition:
+    description: >
+      Does the LTC+CfC hybrid the repository title names beat each of its two
+      single-cell components?  Each contrast differs in exactly one block.
+    kind: model_vs_model
+    arms_a: [ppo_ltc_cfc]
+    arms_b: [ppo_ltc, ppo_cfc]
+    scenarios: primary
+
+  F4_dt_awareness:
+    description: >
+      The one-factor dt-awareness contrast, run across all five primary
+      scenarios.  On irregular_dt this coincides with P1; the other four
+      scenarios are the controls, where dt is constant and the two arms should
+      therefore be indistinguishable.
+    kind: model_vs_model
+    arms_a: [ppo_cfc]
+    arms_b: [ppo_cfc_dtblind]
+    scenarios: primary
+
+  F5_learning_check:
+    description: >
+      Did each model beat its own random initialisation on the identical
+      evaluation stream?  A benchmark whose agents do not learn measures
+      initialisation, not learning.
+    kind: trained_vs_untrained
+    arms_a: all_primary_models
+    scenarios: primary
+
+  F6_vs_greedy_baseline:
+    description: >
+      Each learned policy against a fixed, zero-parameter greedy occupancy
+      heuristic.  The baseline is FIXED IN ADVANCE.  It is deliberately not
+      "the best baseline per scenario", which would be a selection bias.
+      random_policy and constant_channel are reported in every table with
+      confidence intervals but are not part of a tested family.
+    kind: model_vs_model
+    arms_a: all_primary_models
+    arms_b: [greedy_heuristic]
+    scenarios: primary
+
+  F7_federated:
+    description: >
+      Topology comparison at fixed architecture and strictly matched compute.
+      centralized is a performance reference, not a communication baseline.
+    kind: federated_arm
+    holm: true
+    comparisons:
+      - id: F7:hier_vs_flat
+        kind: federated_arm
+        scenario: federated
+        arm_a: hierarchical_federated
+        arm_b: flat_federated
+      - id: F7:hier_vs_centralized
+        kind: federated_arm
+        scenario: federated
+        arm_a: hierarchical_federated
+        arm_b: centralized
+      - id: F7:flat_vs_centralized
+        kind: federated_arm
+        scenario: federated
+        arm_a: flat_federated
+        arm_b: centralized
+
+# ---------------------------------------------------------------------------
+# Exploratory. Reported with intervals and unadjusted p-values, labelled
+# exploratory, and excluded from every confirmatory family above.
+# ---------------------------------------------------------------------------
+exploratory:
+  scenarios: [noisy_partial, bursty_load]
+  models: [ppo_lstm]
+  note: >
+    Not part of any confirmatory family.  ppo_lstm is a near-duplicate control
+    of ppo_gru and is dropped from the primary matrix to buy statistical power;
+    noisy_partial and bursty_load are additional dynamics classes kept runnable
+    but out of the confirmatory analysis for the same reason.

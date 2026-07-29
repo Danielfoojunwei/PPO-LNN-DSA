@@ -1,0 +1,267 @@
+# =============================================================================
+# CI
+# =============================================================================
+# This repository previously had no .github directory at all. All four of its
+# pull requests merged with zero automated verification, including the one that
+# added a test file which raised RuntimeError on import.
+#
+# The jobs below are ordered cheapest-first so a broken build fails fast. The
+# two gates that matter most are `order-invariance` (the D1/D2 regression: a
+# result must not depend on the order models were requested in) and
+# `report-is-generated` (the P1/P2 gate: no prose metric that is not computed
+# from results/).
+# =============================================================================
+
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONHASHSEED: "0"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+
+jobs:
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Show environment
+        run: python -c "import torch, numpy, pandas; print(torch.__version__, numpy.__version__, pandas.__version__)"
+
+      - name: Run unit tests
+        run: pytest -q
+
+  smoke:
+    name: end-to-end smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 2 models x 1 scenario x 2 seeds x 1024 steps, plus the three baselines.
+      - name: Run the suite at smoke budget
+        run: python scripts/run_suite.py --smoke --output-dir /tmp/ci_smoke
+
+      - name: Run the federated arms at smoke budget
+        run: python scripts/run_federated.py --smoke --output-dir /tmp/ci_smoke
+
+      - name: Analyse
+        run: python scripts/analyze.py --results-dir /tmp/ci_smoke --output-dir /tmp/ci_smoke
+
+      - name: Build a report from the smoke results
+        run: python scripts/make_report.py --results-dir /tmp/ci_smoke --output /tmp/ci_smoke/RESULTS.md
+
+      - name: Assert every policy survived into every table
+        run: |
+          python - <<'PY'
+          import pathlib, pandas as pd
+          runs = pd.read_csv("/tmp/ci_smoke/all_runs.csv")
+          expected = set(runs["model"].unique())
+          for path in sorted(pathlib.Path("/tmp/ci_smoke/tables").glob("*.csv")):
+              table = pd.read_csv(path)
+              if "model" not in table.columns:
+                  continue
+              missing = expected - set(table["model"].unique())
+              assert not missing, f"{path.name} dropped policies: {sorted(missing)}"
+              print(f"ok {path.name}: {len(expected)} policies present")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-results
+          path: /tmp/ci_smoke
+
+  order-invariance:
+    name: seeding regression (D1/D2 gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the same cells with the models requested in both orders
+        run: |
+          python scripts/run_suite.py --smoke --models ppo_cfc ppo_gru --output-dir /tmp/order_a
+          python scripts/run_suite.py --smoke --models ppo_gru ppo_cfc --output-dir /tmp/order_b
+
+      # A metric that changes when you reorder --models is a seeding bug. The
+      # previous implementation derived env seeds from a mutable class-level
+      # instance counter, so a model's score depended on its position in the
+      # list; a fixed policy spanned 40 points of nuisance at one nominal seed.
+      - name: Assert the two runs agree bitwise after dropping wall-clock columns
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          a = pd.read_csv("/tmp/order_a/all_runs.csv")
+          b = pd.read_csv("/tmp/order_b/all_runs.csv")
+          drop = [c for c in a.columns if c.startswith("wall_")]
+          key = ["scenario", "model", "seed"]
+          a = a.drop(columns=drop).sort_values(key).reset_index(drop=True)
+          b = b.drop(columns=drop).sort_values(key).reset_index(drop=True)
+          assert list(a.columns) == list(b.columns), "column sets differ"
+          pd.testing.assert_frame_equal(a, b, check_exact=True)
+          print(f"ok: {len(a)} rows identical across --models orderings")
+          PY
+
+  report-is-generated:
+    name: RESULTS.md is generated, not written (P1/P2 gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Only meaningful once a confirmatory run has been committed; skipped
+      # cleanly on a checkout that has no results yet.
+      - name: Regenerate committed tables and diff
+        run: |
+          if [ -f results/all_runs.csv ]; then
+            python scripts/analyze.py --results-dir results --output-dir results --check
+            python scripts/make_report.py --results-dir results
+            git diff --exit-code RESULTS.md results/tables
+          else
+            echo "no committed results/all_runs.csv yet; nothing to verify"
+          fi
+
+      # Study B is a separate study in a separate tree with a separate
+      # pre-registration.  Its tables, claims and mechanistic endpoints are cited
+      # in README.md and docs/STUDY_B.md through the same generated regions, so
+      # they get the same gate.
+      - name: Regenerate Study B tables, claims and endpoints and diff
+        run: |
+          if [ -f results/study_b/all_runs.csv ]; then
+            python scripts/analyze.py --results-dir results/study_b --output-dir results/study_b \
+                                      --prereg configs/preregistration_study_b.yaml --check
+            python scripts/study_b_mechanistic.py --results-dir results/study_b --check
+            git diff --exit-code results/study_b
+          else
+            echo "no committed results/study_b/all_runs.csv yet; nothing to verify"
+          fi
+
+      # Study A must be byte-identical after Study B exists.  The whole point of
+      # keeping the two pre-registrations in two files is that analysing one
+      # study cannot rewrite the other's committed evidence.
+      - name: Assert Study B did not touch Study A
+        run: |
+          git diff --exit-code results/all_runs.csv results/claims.json results/tables \
+                                configs/preregistration.yaml
+
+      # The P2 gate for the hand-written documents.  RESULTS.md was already
+      # covered above; README.md was not, and an audit proved the consequence:
+      # two falsified headline figures survived the entire suite because the
+      # scan skipped markdown tables and inline code, which is where they lived.
+      # Every generated region and every <!--v:...--> span is now rewritten from
+      # results/ and diffed.
+      - name: Regenerate README.md and docs/*.md and diff
+        run: |
+          if [ -f results/all_runs.csv ]; then
+            python scripts/render_docs.py --results-dir results
+            git diff --exit-code README.md docs
+          else
+            echo "no committed results/all_runs.csv yet; nothing to verify"
+          fi
+
+      # Prove the gate above can fail, on every run, before trusting a green
+      # one: falsify the primary comparison's value in a scratch copy of
+      # results/ and assert the render changes.  A gate nobody has watched fail
+      # is not a gate.
+      - name: Prove the gate fails on a falsified claim
+        run: |
+          if [ -f results/claims.json ]; then
+            cp -r results /tmp/tampered
+            python - <<'PY'
+          import json, pathlib
+          path = pathlib.Path("/tmp/tampered/claims.json")
+          doc = json.loads(path.read_text())
+          for claim in doc["claims"]:
+              if claim["claim_id"] == "CLAIM.PRIMARY.P1":
+                  claim["value"] = float(claim["value"]) - 9.0
+          path.write_text(json.dumps(doc, indent=2))
+          PY
+            if python scripts/render_docs.py --results-dir /tmp/tampered --check; then
+              echo "::error::render_docs --check passed against a falsified claims.json"
+              exit 1
+            fi
+            echo "ok: the falsified claim was rejected"
+          else
+            echo "no committed results/claims.json yet; nothing to verify"
+          fi
+
+      # The same negative control for Study B's claims file.  Study A's gate
+      # going red proves nothing about Study B's numbers: they live in a
+      # different file, are read under a different key namespace, and are cited
+      # by different regions.
+      - name: Prove the gate fails on a falsified Study B claim
+        run: |
+          if [ -f results/study_b/claims.json ]; then
+            rm -rf /tmp/tampered_b
+            cp -r results /tmp/tampered_b
+            python - <<'PY'
+          import json, pathlib
+          path = pathlib.Path("/tmp/tampered_b/study_b/claims.json")
+          doc = json.loads(path.read_text())
+          for claim in doc["claims"]:
+              if claim["claim_id"] == "CLAIM.PRIMARY.P1":
+                  claim["value"] = float(claim["value"]) - 9.0
+          path.write_text(json.dumps(doc, indent=2))
+          PY
+            if python scripts/render_docs.py --results-dir /tmp/tampered_b --check; then
+              echo "::error::render_docs --check passed against a falsified Study B claims.json"
+              exit 1
+            fi
+            echo "ok: the falsified Study B claim was rejected"
+          else
+            echo "no committed results/study_b/claims.json yet; nothing to verify"
+          fi

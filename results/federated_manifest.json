@@ -1,0 +1,157 @@
+{
+  "command_line": [
+    "python",
+    "--config",
+    "configs/federated.yaml",
+    "--workers",
+    "4",
+    "--output-dir",
+    "results"
+  ],
+  "config_contents": {
+    "arms": [
+      "centralized",
+      "flat_federated",
+      "hierarchical_federated"
+    ],
+    "model_key": "ppo_ltc_cfc",
+    "num_workers": 4,
+    "ppo": {
+      "clip_epsilon": 0.2,
+      "entropy_coef": 0.01,
+      "gae_lambda": 0.95,
+      "gamma": 0.99,
+      "horizon": 64,
+      "learning_rate": 0.0003,
+      "max_grad_norm": 0.5,
+      "num_envs": 12,
+      "num_sequence_minibatches": 4,
+      "update_epochs": 6,
+      "value_coef": 0.5
+    },
+    "scenario": "non_stationary",
+    "seeds": [
+      7,
+      19,
+      23,
+      41,
+      89,
+      101,
+      137,
+      211,
+      307,
+      401,
+      499,
+      601
+    ],
+    "smoke": {
+      "arms": [
+        "flat_federated",
+        "hierarchical_federated"
+      ],
+      "num_workers": 2,
+      "seeds": [
+        7,
+        19
+      ],
+      "topology": {
+        "cloud_rounds": 1,
+        "device": "cpu",
+        "edge_rounds_per_cloud_round": 2,
+        "eval_episodes": 4,
+        "horizon": 64,
+        "local_num_envs": 4,
+        "local_steps": 256,
+        "num_clients": 4,
+        "num_edges": 2
+      }
+    },
+    "topology": {
+      "cloud_rounds": 3,
+      "device": "cpu",
+      "edge_rounds_per_cloud_round": 2,
+      "eval_episodes": 32,
+      "horizon": 64,
+      "local_num_envs": 12,
+      "local_steps": 768,
+      "num_clients": 8,
+      "num_edges": 2
+    }
+  },
+  "declared_train_steps_per_arm": 36864,
+  "generated_by": "scripts/run_federated.py",
+  "git_commit": "c604aab79cace1501bebc47bcac974ebdf7479ac",
+  "matrix": {
+    "arms": [
+      "centralized",
+      "flat_federated",
+      "hierarchical_federated"
+    ],
+    "num_workers": 4,
+    "ppo": {
+      "clip_epsilon": 0.2,
+      "entropy_coef": 0.01,
+      "gae_lambda": 0.95,
+      "gamma": 0.99,
+      "horizon": 64,
+      "learning_rate": 0.0003,
+      "max_grad_norm": 0.5,
+      "num_envs": 12,
+      "num_sequence_minibatches": 4,
+      "update_epochs": 6,
+      "value_coef": 0.5
+    },
+    "seeds": [
+      7,
+      19,
+      23,
+      41,
+      89,
+      101,
+      137,
+      211,
+      307,
+      401,
+      499,
+      601
+    ],
+    "topology": {
+      "cloud_rounds": 3,
+      "device": "cpu",
+      "edge_rounds_per_cloud_round": 2,
+      "eval_episodes": 32,
+      "horizon": 64,
+      "local_num_envs": 12,
+      "local_steps": 768,
+      "model_key": "ppo_ltc_cfc",
+      "num_clients": 8,
+      "num_edges": 2,
+      "scenario": "non_stationary"
+    }
+  },
+  "schema_version": 1,
+  "topology_resolved": {
+    "clients_per_edge": 4,
+    "cloud_rounds": 3,
+    "device": "cpu",
+    "edge_rounds_per_cloud_round": 2,
+    "eval_episodes": 32,
+    "flat_rounds": 6,
+    "horizon": 64,
+    "local_num_envs": 12,
+    "local_phases_per_client": 6,
+    "local_steps": 768,
+    "model_key": "ppo_ltc_cfc",
+    "num_clients": 8,
+    "num_edges": 2,
+    "scenario": "non_stationary",
+    "total_env_steps_per_arm": 36864
+  },
+  "versions": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.5",
+    "python": "3.11.15",
+    "torch": "2.13.0+cu130"
+  },
+  "wall_seconds": 2009.9035936810033
+}

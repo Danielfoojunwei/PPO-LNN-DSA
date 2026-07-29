@@ -1,0 +1,56 @@
+# =============================================================================
+# AUDIT FIGURES FOR PRE-REBUILD REVISIONS OF THIS REPOSITORY
+# =============================================================================
+# Read this before adding an entry.
+#
+# Every metric in README.md and docs/*.md is generated from results/ by
+# scripts/render_docs.py.  These are the exception, and they are the *only*
+# exception: numbers measured against code and artifacts that no longer exist,
+# because the entire previous results/ tree, its fabricated report generator and
+# its rendered output were deleted rather than archived.  They cannot be
+# recomputed from anything in this repository, so no expression over results/
+# can produce them.
+#
+# They are NOT claims about the current evidence.  They carry no claim_id, they
+# appear only in the sections that discuss earlier revisions, and they are
+# rendered through a marked span so a reader and a test can both tell at a
+# glance that they did not come from results/.
+#
+# Registering one is deliberate: `value`, `measured` and `source` are all
+# mandatory and scripts/render_docs.py refuses to run if any is missing.  If you
+# find yourself wanting to add an entry for a number about the CURRENT
+# artifacts, that is the failure mode this file exists to make visible -- add an
+# expression to build_values() in scripts/render_docs.py instead.
+# =============================================================================
+
+schema_version: 1
+
+figures:
+
+  spearman_param_reward:
+    value: 0.829
+    format: ".3f"
+    measured: >
+      Spearman rank correlation between trainable parameter count and mean
+      reward across the model set of the pre-rebuild revisions, in which hidden
+      widths were hardcoded rather than solved and the largest model carried
+      more than twice the parameters of the smallest.
+    source: >
+      Adversarial audit of the pre-rebuild revisions, reproduced against the
+      code and artifacts as they then stood.  Those artifacts were deleted
+      rather than archived, so this figure is not derivable from results/.
+    derivable_from_results: false
+
+  fedavg_agreement_max_abs:
+    value: 1.19e-07
+    format: ".2e"
+    measured: >
+      Largest absolute per-tensor disagreement between the pre-rebuild
+      hierarchical and flat FedAvg aggregations -- i.e. the measurement showing
+      that the "hierarchy" was a numerical no-op, because clients were seeded
+      from the global model and the edge state was computed and discarded.
+    source: >
+      Adversarial audit of the pre-rebuild federated runners.  The current
+      implementation is a genuine hierarchy and a regression test asserts the
+      two aggregations differ; see dsa/federated/ and tests/test_federated.py.
+    derivable_from_results: false

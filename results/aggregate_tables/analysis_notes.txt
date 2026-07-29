@@ -1,8 +1,0 @@
-Visual and aggregation findings captured on 2026-03-27:
-
-1. The reward heatmap is readable and suitable for documentation. Axis labels, model names, scenario names, and in-cell annotations are legible.
-2. The empirical ranking is mixed rather than universally favorable to PPO-LTC-LFM. PPO-LFM has the best average reward across scenarios, while PPO-LTC-LFM wins the stationary scenario on reward but does not dominate all scenarios.
-3. Greedy heuristic attains the highest spectrum utilization in several scenarios but often suffers much worse cumulative reward, especially under interference-heavy and large-user regimes.
-4. PPO-LTC-LFM is materially slower than PPO-MLP, PPO-GRU, and PPO-LSTM in wall-clock training time, so any final documentation must present an honest performance-versus-cost tradeoff rather than a universal superiority claim.
-5. The federated benchmark suite completed successfully and produced centralized, flat federated, and hierarchical federated results with communication-volume metrics, supporting truthful retention of federated claims if they are described narrowly as controlled empirical federated benchmarks.
-6. Final documentation should emphasize: real executable environment, multi-seed results, ablation evidence, no hardcoded benchmark wins, and mixed but credible empirical outcomes.

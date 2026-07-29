@@ -1,0 +1,75 @@
+{
+  "probe": [
+    {
+      "model": "ppo_mlp",
+      "hidden_dim": 77,
+      "parameter_count": 40280,
+      "env_steps": 2048,
+      "wall_seconds": 0.6942127550000805,
+      "steps_per_second": 2950.1042515413915,
+      "core_seconds_per_env_step": 0.00033897107177738306
+    },
+    {
+      "model": "ppo_cfc",
+      "hidden_dim": 55,
+      "parameter_count": 39994,
+      "env_steps": 2048,
+      "wall_seconds": 2.6920449880008164,
+      "steps_per_second": 760.7599461110414,
+      "core_seconds_per_env_step": 0.0013144750917972736
+    },
+    {
+      "model": "ppo_cfc_dtblind",
+      "hidden_dim": 55,
+      "parameter_count": 39994,
+      "env_steps": 2048,
+      "wall_seconds": 2.532716972000344,
+      "steps_per_second": 808.6177897653074,
+      "core_seconds_per_env_step": 0.001236678208984543
+    },
+    {
+      "model": "ppo_gru",
+      "hidden_dim": 51,
+      "parameter_count": 39942,
+      "env_steps": 2048,
+      "wall_seconds": 2.010937668999759,
+      "steps_per_second": 1018.4303728412805,
+      "core_seconds_per_env_step": 0.0009819031586912885
+    },
+    {
+      "model": "ppo_transformer",
+      "hidden_dim": 45,
+      "parameter_count": 40030,
+      "env_steps": 2048,
+      "wall_seconds": 1.0137818459998016,
+      "steps_per_second": 2020.1584868391901,
+      "core_seconds_per_env_step": 0.0004950106669920906
+    },
+    {
+      "model": "ppo_ltc_cfc",
+      "hidden_dim": 63,
+      "parameter_count": 39825,
+      "env_steps": 2048,
+      "wall_seconds": 3.536237567000171,
+      "steps_per_second": 579.1466102593726,
+      "core_seconds_per_env_step": 0.0017266784995118023
+    },
+    {
+      "model": "ppo_ltc",
+      "hidden_dim": 77,
+      "parameter_count": 40434,
+      "env_steps": 2048,
+      "wall_seconds": 5.378777881999667,
+      "steps_per_second": 380.75563723382743,
+      "core_seconds_per_env_step": 0.00262635638769515
+    }
+  ],
+  "projection": {
+    "effective_steps_per_run": 164864.0,
+    "core_seconds_per_env_step_all_models": 0.008720073085449531,
+    "core_seconds": 34503.02709982924,
+    "wall_seconds": 8801.792627507459,
+    "wall_minutes": 146.696543791791
+  },
+  "measured_utc": "2026-07-29T09:38:23+00:00"
+}

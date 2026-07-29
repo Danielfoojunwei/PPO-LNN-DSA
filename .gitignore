@@ -1,58 +1,86 @@
-# Python
+# =============================================================================
+# WHAT IS COMMITTED EVIDENCE VS WHAT IS REGENERABLE
+# =============================================================================
+# COMMITTED (small, citable, and the thing a reader verifies against):
+#   results/all_runs.csv            one row per (scenario, model, seed)
+#   results/federated_all_runs.csv  one row per (arm, seed)
+#   results/manifest.json           git SHA, config, library versions, real step
+#                                   counts, solved widths, CSV hashes
+#   results/claims.json             machine-readable claims with provenance
+#   results/tables/*.csv            everything the report cites
+#   results/figures/*.png           everything the report shows
+#   RESULTS.md                      generated from the above, CI-diff-checked
+#
+# IGNORED (large, regenerable, or not evidence):
+#   results/raw/                    per-run logs
+#   results/checkpoints/            weights -- the manifest is the anchor, not .pt
+#   anything under a scratch or smoke output directory
+#
+# The previous version of this repository committed 1,031 generated files
+# totalling 85.3% of its bytes, including 127 files from runs its own README
+# described as throwaway smoke tests.
+# =============================================================================
+
+# --- regenerable run artifacts ---
+results/raw/
+results/checkpoints/
+results_smoke/
+results_quick/
+results_fed_smoke/
+results_*_smoke/
+checkpoints/
+checkpoints_*/
+logs/
+logs_*/
+plots/
+tensorboard/
+*.log
+
+# --- model weights: never committed; manifest.json is the reproducibility anchor ---
+*.pt
+*.pth
+*.ckpt
+
+# --- python ---
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
 sdist/
-var/
 wheels/
 *.egg-info/
+.eggs/
 .installed.cfg
 *.egg
 
-# Virtual environments
+# --- environments ---
+.venv/
 venv/
 env/
 ENV/
 
-# IDEs
+# --- tooling caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints
+
+# --- editors / OS ---
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Training outputs
-checkpoints/
-checkpoints_baseline/
-logs/
-logs_baseline/
-tensorboard/
-*.log
-
-# Data
-data/
-*.pkl
-*.pt
-*.pth
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Misc
+# --- misc ---
 *.bak
 *.tmp
+data/
+*.pkl
+results/study_b/parts/

@@ -1,0 +1,70 @@
+# =============================================================================
+# THE FEDERATED MATRIX
+# =============================================================================
+# Three topologies, one architecture, one scenario, twelve seeds.  The
+# conclusion is about TOPOLOGY and says nothing about architecture; model_key is
+# a flag only so the finding can be spot-checked under a different backbone.
+#
+# Compute is matched EXACTLY, not nominally:
+#
+#   hierarchical: 8 clients x 3 cloud rounds x 2 edge rounds x 768 = 36,864
+#   flat:         8 clients x 6 rounds x 768                       = 36,864
+#   centralized:  one agent, 36,864 env steps on the pooled distribution
+#
+# Every runner reports train_steps as the SUM of agent.total_env_steps over
+# every agent it actually trained, and a test asserts it equals
+# declared_train_steps.  The previous version recorded 3,072 while executing
+# 18,432 -- a 6x mismatch, in the arm's favour.
+#
+# local_steps=768 is not a multiple of the suite's 16x64=1024 rollout, so
+# federated clients use num_envs=12: 12 x 64 = 768, exactly one rollout per
+# local phase, no partial batches.
+# =============================================================================
+
+model_key: ppo_ltc_cfc
+scenario: non_stationary
+
+seeds: [7, 19, 23, 41, 89, 101, 137, 211, 307, 401, 499, 601]
+
+arms: [centralized, flat_federated, hierarchical_federated]
+
+topology:
+  num_clients: 8
+  num_edges: 2
+  cloud_rounds: 3
+  edge_rounds_per_cloud_round: 2
+  local_steps: 768
+  local_num_envs: 12
+  horizon: 64
+  eval_episodes: 32
+  device: cpu
+
+num_workers: 4
+
+ppo:
+  num_envs: 12          # overridden per-client to local_num_envs
+  horizon: 64
+  update_epochs: 6
+  num_sequence_minibatches: 4
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.01
+  max_grad_norm: 0.5
+
+smoke:
+  seeds: [7, 19]
+  arms: [flat_federated, hierarchical_federated]
+  topology:
+    num_clients: 4
+    num_edges: 2
+    cloud_rounds: 1
+    edge_rounds_per_cloud_round: 2
+    local_steps: 256
+    local_num_envs: 4
+    horizon: 64
+    eval_episodes: 4
+    device: cpu
+  num_workers: 2

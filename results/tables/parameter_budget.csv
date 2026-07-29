@@ -1,0 +1,11 @@
+model,policy_type,family,dt_aware,cell_kinds,hidden_dim,num_heads,parameter_count,param_error_frac,param_spread_vs_min
+constant_channel,heuristic,heuristic,False,,0,0,0,,0.0
+greedy_heuristic,heuristic,heuristic,False,,0,0,0,,0.0
+ppo_cfc,neural,liquid,True,cfc+cfc,55,0,39994,-0.00015,1.004244
+ppo_cfc_dtblind,neural,liquid_control,False,cfc_dtblind+cfc_dtblind,55,0,39994,-0.00015,1.004244
+ppo_gru,neural,gated_rnn,False,gru+gru,51,0,39942,-0.00145,1.002938
+ppo_ltc,neural,liquid,True,ltc+ltc,77,0,40434,0.01085,1.015292
+ppo_ltc_cfc,neural,liquid,True,ltc+cfc,63,0,39825,-0.004375,1.0
+ppo_mlp,neural,memoryless,False,mlp+mlp,77,0,40280,0.007,1.011425
+ppo_transformer,neural,attention,False,attn+attn,45,1,40030,0.00075,1.005148
+random_policy,heuristic,heuristic,False,,0,0,0,,0.0

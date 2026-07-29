@@ -1,0 +1,89 @@
+# =============================================================================
+# STUDY B -- THE CONFIRMATORY MATRIX AT A LEARNING-CAPABLE BUDGET
+# =============================================================================
+# Study A (configs/suite.yaml, results/all_runs.csv) ran 10,240 env steps per
+# trainable cell, which is 240 PPO gradient steps.  At that budget the critic's
+# explained variance was measured at ~0.0000 and the policy entropy sat at the
+# uniform value ln(8) = 2.079 nats, so the GAE advantages -- and therefore the
+# policy gradient -- were noise.  Study A's architectural comparisons compared
+# initialisations, not learned policies.  Study A's null is committed evidence
+# and this file does not touch it.
+#
+# The exploratory budget ladder in results/raw/budget_sensitivity_diagnostic.jsonl
+# (n = 2 seeds x 2 models x 1 scenario, deliberately excluded from Study A's
+# pre-registration and from RESULTS.md) measured trained-minus-untrained as noise
+# at 10,240 and at 40,960 env steps, but large and same-signed in all four runs
+# at 163,840 env steps / 3,840 gradient steps, with entropy falling to 1.11-1.25
+# nats (gru) / 0.37-0.82 nats (mlp) and explained variance rising to 0.20-0.38
+# (gru) / 0.066-0.086 (mlp).
+#
+# Study B therefore fixes the budget at 163,840 env steps per trainable cell,
+# exactly 16x Study A, and spends its entire remaining wall-clock allowance on
+# holding the seed count at 12 rather than on breadth.  What was dropped, and
+# why, is recorded in configs/preregistration_study_b.yaml under `descoped`.
+#
+# Budget arithmetic is NOT asserted here.  scripts/run_study_b.py re-measures
+# throughput against the real environment with scripts/probe_throughput.py and
+# writes the measurement to results/study_b/timing_probe.json before it starts.
+# =============================================================================
+
+training_steps: 163840   # 160 rollout batches of num_envs(16) x horizon(64)
+
+# Identical to Study A.  The exact sign-flip p-floor is 2/2**n, so n = 12 reaches
+# 4.883e-4 and can still clear Holm-Bonferroni inside a family of up to 102
+# comparisons.  Nothing in this study is allowed to buy wall-clock with seeds.
+seeds: [7, 19, 23, 41, 89, 101, 137, 211, 307, 401, 499, 601]
+
+# Two of Study A's five scenarios.  irregular_dt is the primary block: it is the
+# only registered scenario whose decision interval actually varies, so it is the
+# only one in which the pre-registered primary comparison has content.
+# stationary is the constant-dt replication and control block.  The other three
+# are dropped for wall clock; scripts/run_study_b.py runs the blocks in the order
+# configs/preregistration_study_b.yaml declares, primary first.
+scenarios: [irregular_dt, stationary]
+
+# All seven of Study A's primary models.
+#
+# THE ORDER OF THIS LIST IS THE EXECUTION ORDER, and it is deliberate.  Seeding
+# is order-independent by construction (tests/test_reproducibility.py proves a
+# cell is byte-identical whatever order it was requested in), so ordering costs
+# nothing statistically and buys two things: the two arms of the primary
+# comparison are finished early, and the two most expensive models sit at the end
+# where the declared wall-clock cap would bite first.  ppo_mlp leads because the
+# three zero-parameter baselines ride along with it, so a complete, analysable
+# baseline row set exists within seconds of a block starting.
+models: [ppo_mlp, ppo_cfc, ppo_cfc_dtblind, ppo_gru, ppo_transformer, ppo_ltc_cfc, ppo_ltc]
+
+# Zero-parameter heuristics.  Nearly free, and they are what makes the study
+# honest: at Study A's budget greedy_heuristic beat every learned policy in
+# 35/35 tested cells with Cliff's delta -1.000.
+baselines: [random_policy, constant_channel, greedy_heuristic]
+
+eval_episodes: 32
+num_workers: 4
+
+# Byte-identical to configs/suite.yaml.  Study B changes the budget and nothing
+# else about the learner; a hyperparameter change would confound the budget
+# manipulation with a tuning change.
+ppo:
+  num_envs: 16
+  horizon: 64
+  update_epochs: 6
+  num_sequence_minibatches: 4
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  value_coef: 0.5
+  entropy_coef: 0.01
+  max_grad_norm: 0.5
+
+# The guard exists to stop an accidental multi-hour run.  Study B is a deliberate
+# multi-hour run, so the ceiling is raised rather than removed -- a run that
+# projects past this is a mistake, not a plan.  scripts/run_study_b.py passes
+# --no-guard to the per-model invocations because it applies this ceiling itself,
+# once, against the whole matrix.
+guard:
+  max_projected_wall_minutes: 170.0
+  rollout_batch: 1024
+  never_reduce_seeds: true

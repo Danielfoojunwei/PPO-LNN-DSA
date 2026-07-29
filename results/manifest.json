@@ -1,0 +1,323 @@
+{
+  "command_line": [
+    "python",
+    "--config",
+    "configs/suite.yaml",
+    "--workers",
+    "4",
+    "--output-dir",
+    "results",
+    "--training-steps",
+    "10240",
+    "--no-guard"
+  ],
+  "config_contents": {
+    "baselines": [
+      "random_policy",
+      "constant_channel",
+      "greedy_heuristic"
+    ],
+    "eval_episodes": 32,
+    "guard": {
+      "max_projected_wall_minutes": 40.0,
+      "never_reduce_seeds": true,
+      "rollout_batch": 1024
+    },
+    "models": [
+      "ppo_mlp",
+      "ppo_gru",
+      "ppo_transformer",
+      "ppo_ltc",
+      "ppo_cfc",
+      "ppo_cfc_dtblind",
+      "ppo_ltc_cfc"
+    ],
+    "num_workers": 4,
+    "ppo": {
+      "clip_epsilon": 0.2,
+      "entropy_coef": 0.01,
+      "gae_lambda": 0.95,
+      "gamma": 0.99,
+      "horizon": 64,
+      "learning_rate": 0.0003,
+      "max_grad_norm": 0.5,
+      "num_envs": 16,
+      "num_sequence_minibatches": 4,
+      "update_epochs": 6,
+      "value_coef": 0.5
+    },
+    "scenarios": [
+      "stationary",
+      "non_stationary",
+      "interference_heavy",
+      "irregular_dt",
+      "bursty_irregular"
+    ],
+    "seeds": [
+      7,
+      19,
+      23,
+      41,
+      89,
+      101,
+      137,
+      211,
+      307,
+      401,
+      499,
+      601
+    ],
+    "smoke": {
+      "baselines": [
+        "random_policy",
+        "constant_channel",
+        "greedy_heuristic"
+      ],
+      "eval_episodes": 8,
+      "models": [
+        "ppo_gru",
+        "ppo_cfc"
+      ],
+      "num_workers": 2,
+      "scenarios": [
+        "stationary"
+      ],
+      "seeds": [
+        7,
+        19
+      ],
+      "training_steps": 1024
+    },
+    "training_steps": 10240
+  },
+  "config_file": "configs/suite.yaml",
+  "environment_constants": {
+    "background_hop_rate": 0.25,
+    "interference_relaxation_rate": 0.8,
+    "occupancy_relaxation_rate": 0.6,
+    "quality_relaxation_rate": 0.45,
+    "sensed_occupancy_reports": "primary occupant only; background devices are hidden terminals"
+  },
+  "generated_by": "scripts/run_suite.py",
+  "git_commit": "c604aab79cace1501bebc47bcac974ebdf7479ac",
+  "guard": {
+    "applied": false,
+    "effective_training_steps": 10240,
+    "note": null,
+    "requested_training_steps": 10240,
+    "seed_count_reduced": false
+  },
+  "matrix": {
+    "baselines": [
+      "random_policy",
+      "constant_channel",
+      "greedy_heuristic"
+    ],
+    "eval_episodes": 32,
+    "models": [
+      "ppo_mlp",
+      "ppo_gru",
+      "ppo_transformer",
+      "ppo_ltc",
+      "ppo_cfc",
+      "ppo_cfc_dtblind",
+      "ppo_ltc_cfc"
+    ],
+    "num_cells": 600,
+    "scenarios": [
+      "stationary",
+      "non_stationary",
+      "interference_heavy",
+      "irregular_dt",
+      "bursty_irregular"
+    ],
+    "seeds": [
+      7,
+      19,
+      23,
+      41,
+      89,
+      101,
+      137,
+      211,
+      307,
+      401,
+      499,
+      601
+    ],
+    "training_steps": 10240
+  },
+  "models_solved": {
+    "ppo_cfc": {
+      "attention_window": null,
+      "cell_kinds": [
+        "cfc",
+        "cfc"
+      ],
+      "dt_aware": true,
+      "family": "liquid",
+      "hidden_dim": 55,
+      "key": "ppo_cfc",
+      "num_heads": null,
+      "param_error_frac": -0.00015,
+      "parameter_count": 39994,
+      "state_sizes": [
+        55,
+        55
+      ]
+    },
+    "ppo_cfc_dtblind": {
+      "attention_window": null,
+      "cell_kinds": [
+        "cfc_dtblind",
+        "cfc_dtblind"
+      ],
+      "dt_aware": false,
+      "family": "liquid_control",
+      "hidden_dim": 55,
+      "key": "ppo_cfc_dtblind",
+      "num_heads": null,
+      "param_error_frac": -0.00015,
+      "parameter_count": 39994,
+      "state_sizes": [
+        55,
+        55
+      ]
+    },
+    "ppo_gru": {
+      "attention_window": null,
+      "cell_kinds": [
+        "gru",
+        "gru"
+      ],
+      "dt_aware": false,
+      "family": "gated_rnn",
+      "hidden_dim": 51,
+      "key": "ppo_gru",
+      "num_heads": null,
+      "param_error_frac": -0.00145,
+      "parameter_count": 39942,
+      "state_sizes": [
+        51,
+        51
+      ]
+    },
+    "ppo_lstm": {
+      "attention_window": null,
+      "cell_kinds": [
+        "lstm",
+        "lstm"
+      ],
+      "dt_aware": false,
+      "family": "gated_rnn",
+      "hidden_dim": 45,
+      "key": "ppo_lstm",
+      "num_heads": null,
+      "param_error_frac": -0.0064,
+      "parameter_count": 39744,
+      "state_sizes": [
+        90,
+        90
+      ]
+    },
+    "ppo_ltc": {
+      "attention_window": null,
+      "cell_kinds": [
+        "ltc",
+        "ltc"
+      ],
+      "dt_aware": true,
+      "family": "liquid",
+      "hidden_dim": 77,
+      "key": "ppo_ltc",
+      "num_heads": null,
+      "param_error_frac": 0.01085,
+      "parameter_count": 40434,
+      "state_sizes": [
+        77,
+        77
+      ]
+    },
+    "ppo_ltc_cfc": {
+      "attention_window": null,
+      "cell_kinds": [
+        "ltc",
+        "cfc"
+      ],
+      "dt_aware": true,
+      "family": "liquid",
+      "hidden_dim": 63,
+      "key": "ppo_ltc_cfc",
+      "num_heads": null,
+      "param_error_frac": -0.004375,
+      "parameter_count": 39825,
+      "state_sizes": [
+        63,
+        63
+      ]
+    },
+    "ppo_mlp": {
+      "attention_window": null,
+      "cell_kinds": [
+        "mlp",
+        "mlp"
+      ],
+      "dt_aware": false,
+      "family": "memoryless",
+      "hidden_dim": 77,
+      "key": "ppo_mlp",
+      "num_heads": null,
+      "param_error_frac": 0.007,
+      "parameter_count": 40280,
+      "state_sizes": [
+        0,
+        0
+      ]
+    },
+    "ppo_transformer": {
+      "attention_window": 8,
+      "cell_kinds": [
+        "attn",
+        "attn"
+      ],
+      "dt_aware": false,
+      "family": "attention",
+      "hidden_dim": 45,
+      "key": "ppo_transformer",
+      "num_heads": 1,
+      "param_error_frac": 0.00075,
+      "parameter_count": 40030,
+      "state_sizes": [
+        361,
+        361
+      ]
+    }
+  },
+  "outputs": {
+    "all_runs.csv": "a3cc87243aaf93078463a8fe05c6b8517e32fd25456af429d0ae9af6a0ec24ba"
+  },
+  "ppo_hyperparameters": {
+    "clip_epsilon": 0.2,
+    "entropy_coef": 0.01,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "horizon": 64,
+    "learning_rate": 0.0003,
+    "max_grad_norm": 0.5,
+    "num_envs": 16,
+    "num_sequence_minibatches": 4,
+    "update_epochs": 6,
+    "value_coef": 0.5
+  },
+  "preregistration_sha256": "986878b5b43b37206156dc2681f1e66dfe099a4ab383972b22a19e3fa567581a",
+  "probe": null,
+  "projection": null,
+  "schema_version": 1,
+  "versions": {
+    "numpy": "2.4.6",
+    "pandas": "3.0.5",
+    "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+    "python": "3.11.15",
+    "torch": "2.13.0+cu130"
+  }
+}
