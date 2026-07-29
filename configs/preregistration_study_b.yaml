@@ -1,0 +1,329 @@
+# =============================================================================
+# STUDY B -- PRE-REGISTRATION
+# =============================================================================
+# WHY THIS IS A SEPARATE FILE AND NOT A SECTION OF configs/preregistration.yaml
+# -----------------------------------------------------------------------------
+# dsa.analysis.tables.expand_families() expands EVERY family in whichever
+# pre-registration file it is handed, against whichever all_runs.csv it is handed.
+# Study A's models and scenarios are a superset of Study B's, so a Study B family
+# appended to configs/preregistration.yaml would silently add rows to
+# results/tables/comparisons.csv the next time Study A is analysed -- rewriting
+# committed evidence and turning the CI docs gate red for a reason that has
+# nothing to do with Study A.  Keeping the two plans in two files is what makes
+# non-negotiable #2 (Study A is committed evidence) mechanically true rather than
+# merely promised.  configs/preregistration.yaml is byte-identical to the version
+# that was frozen for Study A and its sha256 in results/manifest.json still
+# matches.
+#
+# STUDY B DOES NOT SUPERSEDE, REPLACE OR RETRO-FIT STUDY A.
+# -----------------------------------------------------------------------------
+# Study A ran 5 scenarios x 12 seeds x 10 policies at 10,240 env steps and
+# returned a null on its primary comparison, with the zero-parameter
+# greedy_heuristic beating every learned policy in all 35 tested cells.  That
+# result stands, is reported unchanged in RESULTS.md, and its artifacts
+# (results/all_runs.csv, results/tables/, results/claims.json) are not touched by
+# Study B.  Study B writes only under results/study_b/.
+#
+# Both studies are reported side by side.  Study A is the honest answer to
+# "what happens at 10,240 steps".  Study B is the honest answer to "what happens
+# at 163,840 steps".  If they disagree, that disagreement is the finding.
+#
+# WHAT STUDY B IS FOR
+# -----------------------------------------------------------------------------
+# Study A's null is very likely a compute artifact.  Its diagnostics show the
+# critic explaining ~0.0000 of the return variance and the policy sitting at the
+# uniform entropy ln(8) = 2.079 nats after 240 gradient steps, so the advantages
+# fed to the policy gradient were noise and every architectural contrast in
+# Study A compared random initialisations rather than learned policies.  The
+# exploratory ladder in results/raw/budget_sensitivity_diagnostic.jsonl showed
+# consistent, same-signed learning at 163,840 env steps / 3,840 gradient steps.
+# Study B is the confirmatory run at that budget.
+#
+# A null at this budget is a real result and will be reported as one.
+# =============================================================================
+
+study: B
+supersedes: none
+study_a_status: >
+  Committed evidence.  Not re-run, not re-analysed, not overwritten by this
+  study.  Study A's plan lives in configs/preregistration.yaml and is unchanged.
+
+version: 1
+analysis_seed: 20260729        # identical to Study A, so bootstrap intervals are
+                               # drawn the same way in both studies
+alpha: 0.05
+ci_level: 0.95
+metric: mean_eval_return
+metric_definition: >
+  Mean undiscounted episode return over 32 deterministic (argmax) evaluation
+  episodes of 64 steps each.  Evaluation episode seeds are derived from
+  (base_seed, scenario) and deliberately EXCLUDE the model name, so every policy
+  in a given (seed, scenario) cell is scored on byte-identical environment
+  streams.  That is what makes the seed-paired tests below valid.
+test: two-sided paired exact sign-flip permutation test
+correction: holm-bonferroni within each declared family
+pairing: >
+  Comparisons are paired by seed; n_pairs = 12 for every comparison.  With
+  n = 12 the exact sign-flip test enumerates all 2**12 = 4096 sign vectors and
+  its smallest attainable p-value is 2/4096 = 4.883e-4, which clears
+  Holm-Bonferroni at alpha = 0.05 inside a family of up to 102 comparisons.  The
+  largest family declared below has 9 members.
+
+# ---------------------------------------------------------------------------
+# BUDGET
+# ---------------------------------------------------------------------------
+budget:
+  training_steps_per_trainable_cell: 163840   # 16x Study A's 10,240
+  gradient_steps_per_trainable_cell: 3840     # 160 updates x 6 epochs x 4 minibatches
+  eval_episodes: 32
+  rationale: >
+    The lowest rung of the exploratory ladder at which trained-minus-untrained was
+    large and same-signed in all four measured runs (gru +23.48 / +31.35,
+    mlp +26.30 / +19.08 depending on seed), with policy entropy falling from
+    ~2.03 nats to 1.11-1.25 (gru) and 0.37-0.82 (mlp) and critic explained
+    variance rising from ~0.0000 to 0.20-0.38 (gru) and 0.066-0.086 (mlp).
+    163,840 is chosen because it is exactly 16x Study A and because it is the
+    rung the ladder actually measured -- not because it is the largest budget
+    that fits.
+  hyperparameters: >
+    Byte-identical to Study A (configs/suite.yaml `ppo` block).  Study B changes
+    the number of environment steps and nothing else.  Changing a hyperparameter
+    at the same time would confound the budget manipulation with a tuning change.
+
+# ---------------------------------------------------------------------------
+# MATRIX
+# ---------------------------------------------------------------------------
+seeds: [7, 19, 23, 41, 89, 101, 137, 211, 307, 401, 499, 601]   # identical to Study A
+models: [ppo_mlp, ppo_gru, ppo_transformer, ppo_ltc, ppo_cfc, ppo_cfc_dtblind, ppo_ltc_cfc]
+baselines: [random_policy, constant_channel, greedy_heuristic]
+
+blocks:
+  primary_block:
+    scenario: irregular_dt
+    status: confirmatory
+    rationale: >
+      irregular_dt is the only registered scenario whose decision interval
+      actually varies (dt_mode=loguniform, dt in [0.2, 3.0]).  It is therefore
+      the only scenario in which the pre-registered primary comparison has any
+      content, and it is where the confirmatory families live.
+    families: [F1_primary, F2_learning_check, F3_hybrid_decomposition,
+               F5_liquid_vs_conventional, F6_within_conventional,
+               F7_vs_greedy_baseline]
+  replication_block:
+    scenario: stationary
+    status: confirmatory, contingent on the stopping rule below
+    rationale: >
+      A constant-dt (dt_mode=constant) replication.  It does two jobs: it is an
+      external-validity check on the primary block, and it is the CONTROL for the
+      dt-awareness contrast -- where dt does not vary, ppo_cfc and
+      ppo_cfc_dtblind are architecturally, parametrically and informationally
+      identical, so a detected difference there would indicate a nuisance effect
+      rather than a dt effect.
+    families: [F4_dt_awareness_control, F8_replication_learning_check,
+               F9_replication_liquid_vs_conventional, F10_replication_vs_greedy]
+
+# ---------------------------------------------------------------------------
+# STOPPING RULE -- declared in advance so an incomplete run cannot be dressed up
+# ---------------------------------------------------------------------------
+stopping_rule:
+  wall_clock_cap_minutes: 150
+  granularity: >
+    The runner checks the elapsed wall clock at each (scenario, model) part
+    boundary and never mid-part.  The primary block runs first, in full.  If the
+    cap is reached the remaining parts are SKIPPED AS WHOLE (scenario, model)
+    parts and each skipped part is recorded by name, with the elapsed time that
+    caused the skip, in results/study_b/manifest.json under `dropped_parts`.
+  consequence: >
+    A family whose arms are not all present simply produces no rows: it vanishes
+    from comparisons.csv rather than being tested on a subset.  Nothing is
+    silently truncated and no family is ever tested on fewer than 12 seeds.
+  seeds_are_never_reduced: true
+
+# ---------------------------------------------------------------------------
+# WHAT WAS DROPPED FROM STUDY A'S MATRIX, AND WHY
+# ---------------------------------------------------------------------------
+# Priority order applied, strictly: (i) 12 seeds, (ii) the primary comparison,
+# (iii) the three zero-parameter baselines in every cell, (iv) everything else.
+# A 16x budget increase at Study A's breadth would be ~16 hours of compute; the
+# allowance is ~200 minutes.  Breadth was cut.  The seed count was not.
+descoped:
+  scenarios:
+    dropped: [non_stationary, interference_heavy, bursty_irregular]
+    reason: >
+      Wall clock.  Three of Study A's five confirmatory scenarios are dropped so
+      the two that are kept can be run at 12 seeds and 16x the budget.  Study A's
+      evidence on these three at 10,240 steps stands and is not revisited.
+  models:
+    dropped: [ppo_lstm]
+    reason: >
+      Excluded from Study A's confirmatory matrix for the same reason -- it is a
+      near-duplicate control of ppo_gru.  Registered and runnable.
+  sub_studies:
+    dropped: [federated_topology]
+    reason: >
+      Study A's F7 (hierarchical vs flat vs centralized, compute-matched) is a
+      separate 3-arm study that is orthogonal to the budget question Study B
+      exists to answer.  It is not re-run.  Study A's federated evidence stands.
+
+# ---------------------------------------------------------------------------
+# THE SINGLE PRE-REGISTERED PRIMARY COMPARISON
+# ---------------------------------------------------------------------------
+# Unchanged from Study A, deliberately: this is the repository's thesis and the
+# only comparison in it whose two arms have identical architecture, identical
+# parameter count, identical initialisation distribution, identical inputs and
+# identical environment streams, and differ solely in whether the elapsed
+# decision interval enters the recurrent state update.  Both arms receive dt as
+# an encoder input feature; only ppo_cfc lets it into the closed-form time gate.
+# It can come out negative and that is the point.
+primary_comparison:
+  id: P1
+  description: >
+    Does letting the elapsed decision interval enter the recurrent state update
+    improve dynamic spectrum access under irregular decision intervals, when the
+    agents have been trained long enough to have learned anything at all?
+  scenario: irregular_dt
+  arm_a: ppo_cfc
+  arm_b: ppo_cfc_dtblind
+  metric: mean_eval_return
+  test: two-sided paired exact sign-flip
+  alpha: 0.05
+  direction: two-sided
+  reported: unadjusted (singleton family)
+
+# ---------------------------------------------------------------------------
+# CONFIRMATORY FAMILIES.  Holm-Bonferroni WITHIN each family.
+# 52 comparisons in total: 28 in the primary block, 24 in the replication block.
+# ---------------------------------------------------------------------------
+families:
+
+  F1_primary:
+    description: The pre-registered primary comparison, reported unadjusted.
+    holm: false
+    kind: model_vs_model
+    comparisons:
+      - id: P1
+        scenario: irregular_dt
+        arm_a: ppo_cfc
+        arm_b: ppo_cfc_dtblind
+
+  F2_learning_check:
+    description: >
+      THE PRECONDITION.  Did each model beat its own random initialisation on the
+      identical evaluation stream, at 163,840 steps?  Study A answered no in
+      0 of 35 cells.  If the answer is still no, every other family below is
+      comparing initialisations and must be read as such.
+    kind: trained_vs_untrained
+    arms_a: all_primary_models
+    scenarios: [irregular_dt]
+
+  F3_hybrid_decomposition:
+    description: >
+      Does the LTC+CfC hybrid the repository title names beat each of its two
+      single-cell components?  Each contrast differs in exactly one block.
+    kind: model_vs_model
+    arms_a: [ppo_ltc_cfc]
+    arms_b: [ppo_ltc, ppo_cfc]
+    scenarios: [irregular_dt]
+
+  F4_dt_awareness_control:
+    description: >
+      The dt-awareness contrast on a CONSTANT-dt scenario.  Here the two arms are
+      informationally identical, so the expected result is no difference.  A
+      detected difference here is evidence of a nuisance effect, not of dt.
+    kind: model_vs_model
+    arms_a: [ppo_cfc]
+    arms_b: [ppo_cfc_dtblind]
+    scenarios: [stationary]
+
+  F5_liquid_vs_conventional:
+    description: >
+      Liquid / continuous-time cells against conventional cells at equal depth
+      (2 blocks) and equal capacity (all within 5% of 40,000 parameters):
+      {LTC, CfC, LTC+CfC} x {gated GRU, windowed self-attention, memoryless MLP}.
+    kind: model_vs_model
+    arms_a: [ppo_ltc, ppo_cfc, ppo_ltc_cfc]
+    arms_b: [ppo_gru, ppo_transformer, ppo_mlp]
+    scenarios: [irregular_dt]
+
+  F6_within_conventional:
+    description: >
+      Does either conventional memory mechanism beat having no memory at all?
+      Without this, a null in F5 cannot be distinguished from "memory is
+      irrelevant on this task".
+    kind: model_vs_model
+    arms_a: [ppo_gru, ppo_transformer]
+    arms_b: [ppo_mlp]
+    scenarios: [irregular_dt]
+
+  F7_vs_greedy_baseline:
+    description: >
+      Each learned policy against a FIXED, zero-parameter greedy occupancy
+      heuristic chosen in advance -- deliberately not "the best baseline per
+      scenario", which would be a selection bias.  At Study A's budget the
+      heuristic won 35/35 with Cliff's delta -1.000 and a 66-81 point margin.
+      random_policy and constant_channel appear in every table with intervals
+      but are not part of a tested family.
+    kind: model_vs_model
+    arms_a: all_primary_models
+    arms_b: [greedy_heuristic]
+    scenarios: [irregular_dt]
+
+  F8_replication_learning_check:
+    description: The F2 precondition, replicated on the constant-dt scenario.
+    kind: trained_vs_untrained
+    arms_a: all_primary_models
+    scenarios: [stationary]
+
+  F9_replication_liquid_vs_conventional:
+    description: F5, replicated on the constant-dt scenario.
+    kind: model_vs_model
+    arms_a: [ppo_ltc, ppo_cfc, ppo_ltc_cfc]
+    arms_b: [ppo_gru, ppo_transformer, ppo_mlp]
+    scenarios: [stationary]
+
+  F10_replication_vs_greedy:
+    description: F7, replicated on the constant-dt scenario.
+    kind: model_vs_model
+    arms_a: all_primary_models
+    arms_b: [greedy_heuristic]
+    scenarios: [stationary]
+
+# ---------------------------------------------------------------------------
+# DECLARED-BUT-DESCRIPTIVE ENDPOINTS
+# ---------------------------------------------------------------------------
+# Named here so they cannot be presented later as if they had been tested.  They
+# carry intervals where an interval is meaningful, and NO p-value and NO Holm
+# correction.  They exist to answer "did the optimiser do anything mechanical",
+# which is a different question from "did the reward go up".
+mechanistic_endpoints:
+  correction: none -- descriptive only, never tested, never counted in a family
+  endpoints:
+    - name: policy_entropy_before_vs_after
+      columns: [untrained_mean_policy_entropy_nats, mean_policy_entropy_nats]
+      source: results/study_b/all_runs.csv
+      note: >
+        Genuine distributional entropy, Categorical(logits=pi(s)).entropy()
+        averaged over visited states during evaluation -- NOT an action
+        histogram.  Uniform over 8 channels is ln(8) = 2.0794 nats.
+    - name: rollout_policy_entropy_first_vs_last_update
+      columns: [first_update_policy_entropy_mean, final_policy_entropy_mean]
+      source: results/study_b/all_runs.csv
+    - name: critic_explained_variance_first_vs_last_update
+      columns: [first_update_explained_variance, final_explained_variance]
+      source: results/study_b/all_runs.csv
+      note: >
+        1 - Var(returns - V) / Var(returns) on the rollout the critic was about to
+        be trained on.  ~0.0000 throughout Study A.
+
+# ---------------------------------------------------------------------------
+# EXPLORATORY.  Not in any family above.  Labelled exploratory wherever reported.
+# ---------------------------------------------------------------------------
+exploratory:
+  items:
+    - results/raw/budget_sensitivity_diagnostic.jsonl -- the n=2 budget ladder
+      that motivated this study.  It is not evidence for any claim in it.
+    - the timing probe and the 4-worker calibration run used to size this matrix.
+      Both measure wall clock only and read no reward.
+  note: >
+    Anything computed from results/study_b/ that is not one of the 52 comparisons
+    or the mechanistic endpoints above is exploratory and must be labelled so.

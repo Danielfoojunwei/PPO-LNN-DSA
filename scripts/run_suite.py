@@ -128,6 +128,13 @@ def run_cell(spec: dict) -> dict:
                 "final_approx_kl": float("nan"),
                 "final_clip_fraction": float("nan"),
                 "final_explained_variance": float("nan"),
+                # Mechanistic columns.  A heuristic runs no update, so it has no
+                # critic and no behaviour-policy distribution: NaN, not zero.
+                "first_update_explained_variance": float("nan"),
+                "first_update_policy_entropy_mean": float("nan"),
+                "final_policy_entropy_mean": float("nan"),
+                "first_update_mean_rollout_return": float("nan"),
+                "final_mean_rollout_return": float("nan"),
                 # A zero-parameter heuristic has no initialisation to improve on,
                 # so its "untrained" and "trained" scores are the same number by
                 # definition.  Recorded explicitly rather than left blank so the
@@ -177,6 +184,13 @@ def run_cell(spec: dict) -> dict:
 
     ratio_devs = [float(l["first_epoch_max_ratio_deviation"]) for l in logs if "first_epoch_max_ratio_deviation" in l]
     last = logs[-1] if logs else {}
+    # Mechanistic evidence that the update did something, recorded at both ends of
+    # training rather than only at the end.  `explained_variance` is the critic's
+    # fit to its own GAE returns on the rollout it was about to be trained on, and
+    # `policy_entropy_mean` is the genuine distributional entropy of the behaviour
+    # policy (Categorical(logits).entropy()), not an action histogram.  Without the
+    # first-update values a flat entropy trace and a falling one are indistinguishable.
+    first = logs[0] if logs else {}
 
     row.update(
         {
@@ -199,6 +213,11 @@ def run_cell(spec: dict) -> dict:
             "final_approx_kl": float(last.get("approx_kl", float("nan"))),
             "final_clip_fraction": float(last.get("clip_fraction", float("nan"))),
             "final_explained_variance": float(last.get("explained_variance", float("nan"))),
+            "first_update_explained_variance": float(first.get("explained_variance", float("nan"))),
+            "first_update_policy_entropy_mean": float(first.get("policy_entropy_mean", float("nan"))),
+            "final_policy_entropy_mean": float(last.get("policy_entropy_mean", float("nan"))),
+            "first_update_mean_rollout_return": float(first.get("mean_rollout_return", float("nan"))),
+            "final_mean_rollout_return": float(last.get("mean_rollout_return", float("nan"))),
             "mean_eval_return_untrained": float(untrained_summary["mean_eval_return"]),
             "mean_eval_return_trained": float(trained_summary["mean_eval_return"]),
             "wall_train_seconds": float(train_seconds),

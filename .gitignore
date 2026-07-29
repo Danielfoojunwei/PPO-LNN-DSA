@@ -83,3 +83,4 @@ Thumbs.db
 *.tmp
 data/
 *.pkl
+results/study_b/parts/
