@@ -116,6 +116,36 @@ what Study B settled, what it did not, and what remains confounded.
 
 ---
 
+## What is and is not novel here
+
+Stated plainly so a reader does not have to infer it.
+
+**Not novel.** The architectures are faithful reimplementations, not contributions: the LTC is
+Hasani et al. (2021) and the CfC is Hasani et al. (2022), both verified against their published
+equations rather than invented here. The environment is a stochastic abstraction, not a new
+benchmark anyone else can adopt. That an under-trained RL comparison yields architecture
+rankings indistinguishable from noise is already established — Henderson et al. (2018),
+Engstrom et al. (2020) and Agarwal et al. (2021) all made the point; this repository reproduced
+it on itself, which is a demonstration rather than a discovery. That a hand-written heuristic
+beats deep RL on a spectrum-access task is close to a convention in that literature.
+
+**What the repository does offer.** A single artifact in which the *same* pre-registered
+comparison is run at two budgets 16× apart and reaches different conclusions about whether
+anything learned at all, with both sets of artifacts committed and neither retro-fitted to the
+other; and the enforcement machinery that makes its own numbers hard to fake — documentation
+metrics generated from results with a CI step that falsifies a claim on every run to prove the
+gate fails, and six specification rules pinned by mutation-tested guards. That is research
+hygiene, and hygiene is not a result.
+
+**The one candidate for a real finding, and why it does not qualify yet.** `ppo_ltc` and
+`ppo_ltc_cfc` fail to train where six capacity-matched alternatives succeed, on identical seeds
+and environment streams. A dedicated investigation
+([`docs/LTC_DIAGNOSIS.md`](docs/LTC_DIAGNOSIS.md)) tested the two most plausible mechanisms and
+**rejected both**. An undiagnosed failure is a defect report about this implementation, not a
+property of liquid time-constant networks, and this document does not present it as one.
+
+---
+
 ## The two studies side by side
 
 **Every table and every number in this README is written by `scripts/render_docs.py` from
@@ -369,13 +399,31 @@ it.
 
 **Every architectural comparison involving either model is therefore a comparison against a
 non-learner and must be read that way**, including all six `F5`/`F9` contrasts that appear to
-show "liquid loses to conventional". Exploratory, and not pre-registered: this looks like an
-optimisation pathology in the LTC cell under this PPO configuration rather than a property of
-continuous-time models, because `ppo_cfc` is also liquid, also `dt`-aware, also
-capacity-matched, and ranks <!--v:studyb.rank.ppo_cfc.rank-->2<!--/v--> of
-<!--v:studyb.rank.policies-->10<!--/v-->. The LTC cell's unit tests pass and it is the verified
-Hasani et al. (2021) formulation, so this is a learner/architecture interaction the existing
-test suite cannot see. It deserves a dedicated investigation and has not had one.
+show "liquid loses to conventional". This is an optimisation pathology in the LTC cell under
+this PPO configuration rather than a property of continuous-time models: `ppo_cfc` is also
+liquid, also `dt`-aware, also capacity-matched, and ranks
+<!--v:studyb.rank.ppo_cfc.rank-->2<!--/v--> of <!--v:studyb.rank.policies-->10<!--/v-->. The LTC
+cell's unit tests pass and it is the verified Hasani et al. (2021) formulation, so this is a
+learner/architecture interaction the existing test suite cannot see.
+
+That investigation has now been run, and **it did not succeed**. Three exploratory diagnostics
+are written up in [`docs/LTC_DIAGNOSIS.md`](docs/LTC_DIAGNOSIS.md). In summary: the obvious
+explanation — recurrent gradient decay over the
+<!--v:diag.horizon-->64<!--/v-->-step episode — is **refuted**, because the CfC decays *more*
+(gradient ratio <!--v:diag.gradratio.cfc-->1.3e-25<!--/v--> against the LTC's
+<!--v:diag.gradratio.ltc-->2.2e-17<!--/v-->) and still learns. A real, LTC-specific pathology
+*was* found — its recurrent update-to-weight ratio is
+<!--v:diag.uw.ppo_ltc-->5.9e-05<!--/v--> against
+<!--v:diag.uw.others_min-->9.8e-04<!--/v-->–<!--v:diag.uw.others_max-->3.9e-03<!--/v--> for the
+other <!--v:diag.uw.n_compared-->8<!--/v--> models, localised to the synaptic maps being starved
+relative to `A` — but **correcting it does not restore learning**: raising `A` tenfold at
+initialisation gives a mean delta of
+<!--v:diag.int.ppo_ltc.a_scale10.mean_delta-->+0.63<!--/v--> and raising only the learning rate
+tenfold gives <!--v:diag.int.ppo_ltc.lr10.mean_delta-->-1.14<!--/v-->, against a `ppo_gru`
+control on identical seeds and streams at
+<!--v:diag.int.ppo_gru.default.mean_delta-->+16.47<!--/v-->. **Two candidate mechanisms tested,
+both rejected; the failure is now better characterised and still unexplained.** Treat it as a
+likely remaining defect in this repository's LTC, not as evidence about LTCs.
 
 ### 4. A zero-parameter heuristic wins everything, at both budgets
 
@@ -747,6 +795,23 @@ involving either model — six of the nine rows in each of F5 and F9, and both r
 measures a non-learner.** Read literally they say "liquid loses to conventional"; read
 honestly they say "a model that did not train loses to models that did". No claim in this
 document reads them the first way.
+
+A dedicated exploratory investigation has since been run and **failed to explain the
+failure** — see [`docs/LTC_DIAGNOSIS.md`](docs/LTC_DIAGNOSIS.md). Recurrent gradient decay was
+refuted as the cause (every cell here decays; the CfC decays more and learns). A genuine
+LTC-specific gradient starvation was measured, then **rejected as the cause** because
+correcting it — tenfold `A` at initialisation, or tenfold learning rate — leaves the model
+within noise of zero while a `ppo_gru` control on identical seeds gains
+<!--v:diag.int.ppo_gru.default.mean_delta-->+16.47<!--/v-->. Notably, the tenfold learning rate
+*does* lift the critic's explained variance to
+<!--v:diag.int.ppo_ltc.lr10.max_ev-->0.426<!--/v--> from
+<!--v:diag.int.ppo_ltc.default.max_ev-->0.000<!--/v--> without moving the reward, so a faster
+optimiser is not the missing piece. Two mechanisms tested, both rejected. **The prior that
+something in `dsa/models/cells.py::LTCCell` or its initialisation is still wrong should go up,
+not down** — an implementation that a PPO setup trains seven other architectures with, and
+cannot train this one with, is more likely subtly incorrect than revealing. The document lists
+what would settle it, starting with a supervised delayed-copy task on the cell alone and a diff
+against the reference `ncps` implementation, neither of which has been done.
 
 **5. Three of Study A's five scenarios, and the whole federated sub-study, were not re-run at
 the higher budget.** Study B kept <!--v:studyb.matrix.n_scenarios-->2<!--/v--> scenarios and
@@ -1210,10 +1275,12 @@ dsa/learner/         sequence-based recurrent PPO, evaluation harness
 dsa/federated/       aggregation, topology, the three federated arms
 dsa/analysis/        statistics, tables, figures
 scripts/             probe, run_suite, run_federated, run_study_b, study_b_mechanistic,
-                     analyze, make_report, render_docs
+                     analyze, make_report, render_docs,
+                     diagnose_ltc*  (exploratory: the LTC failure investigation)
 configs/             suite.yaml, federated.yaml, preregistration.yaml   (Study A)
                      suite_study_b.yaml, preregistration_study_b.yaml   (Study B)
 results/             Study A evidence; results/study_b/ is Study B's, never written by A
+                     results/diagnostics/ is exploratory, not evidence for any claim
 docs/                prose, plus historical_figures.yaml (the one non-results/ number source)
 tests/               one test file per owned module, plus the honesty gates
 ```
@@ -1232,6 +1299,8 @@ tests/               one test file per owned module, plus the honesty gates
   against (seeding, environment, learner, analysis internals).
 - [`docs/MODEL_CARDS.md`](docs/MODEL_CARDS.md) — per-model implementation cards and the
   tests that pin each equation.
+- [`docs/LTC_DIAGNOSIS.md`](docs/LTC_DIAGNOSIS.md) — exploratory: why `ppo_ltc` does not
+  train, which hypotheses were refuted, and why the failure is still unexplained.
 
 ## References
 
@@ -1241,6 +1310,12 @@ tests/               one test file per owned module, plus the honesty gates
   Continuous-time Neural Networks.* Nature Machine Intelligence 4, 2022. arXiv:2106.13898.
 - Schulman, Wolski, Dhariwal, Radford, Klimov. *Proximal Policy Optimization Algorithms.*
   2017. arXiv:1707.06347.
+- Henderson, Islam, Bachman, Pineau, Precup, Meger. *Deep Reinforcement Learning that
+  Matters.* AAAI 2018. arXiv:1709.06560.
+- Engstrom, Ilyas, Santurkar, Tsipras, Janoos, Rudolph, Madry. *Implementation Matters in
+  Deep RL: A Case Study on PPO and TRPO.* ICLR 2020. arXiv:2005.12729.
+- Agarwal, Schwarzer, Castro, Courville, Bellemare. *Deep Reinforcement Learning at the Edge
+  of the Statistical Precipice.* NeurIPS 2021. arXiv:2108.13264.
 - Schulman, Moritz, Levine, Jordan, Abbeel. *High-Dimensional Continuous Control Using
   Generalized Advantage Estimation.* ICLR 2016. arXiv:1506.02438.
 - Holm. *A simple sequentially rejective multiple test procedure.* Scandinavian Journal of

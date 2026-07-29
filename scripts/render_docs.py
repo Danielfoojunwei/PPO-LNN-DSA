@@ -339,6 +339,106 @@ def build_values(results_dir: pathlib.Path, repo_root: pathlib.Path = REPO_ROOT)
     # -- Study B, in its own namespace --------------------------------------- #
     values.update(build_study_b_values(study_b_dir(results_dir), repo_root, values))
 
+    # -- exploratory diagnostics, in their own namespace --------------------- #
+    values.update(build_diagnostic_values(results_dir / "diagnostics"))
+
+    return values
+
+
+# --------------------------------------------------------------------------- #
+# The LTC diagnosis.  EXPLORATORY, not pre-registered.
+#
+# These figures answer "why does ppo_ltc fail to train", which Study B raised and
+# could not answer.  They are kept in a ``diag.*`` namespace, separate from both
+# studies, because they are not confirmatory: no permutation test, no correction,
+# no pre-registration, four seeds.  A document citing them must say so.  They are
+# generated rather than typed for the same reason every other number is -- a
+# diagnosis whose numbers drift from its artifacts is worse than no diagnosis.
+# --------------------------------------------------------------------------- #
+
+#: Model whose failure is under investigation, and the control that must learn.
+DIAG_SUBJECT = "ppo_ltc"
+DIAG_CONTROL = "ppo_gru"
+
+
+def build_diagnostic_values(diag_dir: pathlib.Path) -> dict[str, tuple[Any, str]]:
+    """Every citable diagnostic scalar, keyed ``diag.*``."""
+    values: dict[str, tuple[Any, str]] = {}
+    P = "diag."
+
+    # -- diagnostic 1: state retention and BPTT gradient, per cell type ------ #
+    mech = diag_dir / "mechanism.json"
+    if mech.exists():
+        doc = json.loads(mech.read_text())
+        values[f"{P}horizon"] = (doc["horizon"], "d")
+        for entry in doc.get("retention", []):
+            label = entry["label"].split()[0]
+            if entry["label"] != label:  # only the plain, default configuration
+                continue
+            values[f"{P}retain.{label}"] = (entry["median_per_step_retention"], ".3f")
+        for entry in doc.get("gradient", []):
+            label = entry["label"].split()[0]
+            if entry["label"] != label:
+                continue
+            values[f"{P}gradratio.{label}"] = (entry["grad_at_t0_over_grad_at_T"], ".1e")
+            values[f"{P}effhorizon.{label}"] = (entry["effective_horizon_steps"], "d")
+
+    # -- diagnostic 2: parameter-gradient scale on the real registry models -- #
+    params = diag_dir / "param_gradients.json"
+    if params.exists():
+        doc = json.loads(params.read_text())
+        ratios = {
+            m["model"]: m["median_update_over_weight_recurrent"]
+            for m in doc.get("models", [])
+            if m.get("median_update_over_weight_recurrent") is not None
+        }
+        for model, ratio in ratios.items():
+            values[f"{P}uw.{model}"] = (ratio, ".1e")
+        others = [r for m, r in ratios.items() if m != DIAG_SUBJECT]
+        if DIAG_SUBJECT in ratios and others:
+            subject = ratios[DIAG_SUBJECT]
+            values[f"{P}uw.others_min"] = (min(others), ".1e")
+            values[f"{P}uw.others_max"] = (max(others), ".1e")
+            values[f"{P}uw.ratio_min"] = (min(others) / subject, ".0f")
+            values[f"{P}uw.ratio_max"] = (max(others) / subject, ".0f")
+            values[f"{P}uw.n_compared"] = (len(ratios), "d")
+        for model in (DIAG_SUBJECT,):
+            per = next(
+                (m["per_parameter"] for m in doc["models"] if m["model"] == model), {}
+            )
+            for pname, short in (
+                ("blocks.0.A", "A"),
+                ("blocks.0.log_tau", "log_tau"),
+                ("blocks.0.recurrent_map.weight", "recurrent_map"),
+                ("blocks.0.input_map.weight", "input_map"),
+            ):
+                if pname in per and per[pname]["update_over_weight"] is not None:
+                    values[f"{P}ltc_param.{short}"] = (
+                        per[pname]["update_over_weight"],
+                        ".2e",
+                    )
+
+    # -- diagnostic 3: do the candidate fixes rescue it --------------------- #
+    inter = diag_dir / "intervention.json"
+    if inter.exists():
+        doc = json.loads(inter.read_text())
+        rows = doc.get("rows", [])
+        values[f"{P}int.steps"] = (doc["training_steps"], "d")
+        values[f"{P}int.seeds"] = (len(doc.get("seeds", [])), "d")
+        values[f"{P}int.scenario"] = (doc["scenario"], "s")
+        by_arm: dict[str, list[dict]] = {}
+        for row in rows:
+            by_arm.setdefault(f"{row['model']}.{row['arm']}", []).append(row)
+        for arm, group in by_arm.items():
+            deltas = [r["delta"] for r in group]
+            evs = [r["final_explained_variance"] for r in group]
+            ents = [r["final_policy_entropy"] for r in group]
+            values[f"{P}int.{arm}.mean_delta"] = (sum(deltas) / len(deltas), "+.2f")
+            values[f"{P}int.{arm}.n_positive"] = (sum(1 for d in deltas if d > 0), "d")
+            values[f"{P}int.{arm}.n"] = (len(deltas), "d")
+            values[f"{P}int.{arm}.max_ev"] = (max(evs), ".3f")
+            values[f"{P}int.{arm}.min_entropy"] = (min(ents), ".3f")
+            values[f"{P}int.{arm}.max_entropy"] = (max(ents), ".3f")
     return values
 
 
