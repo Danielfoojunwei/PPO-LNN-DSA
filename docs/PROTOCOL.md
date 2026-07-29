@@ -264,10 +264,15 @@ correction honest rather than a post-hoc count.
   "gains" to seventeen significant digits with no uncertainty column at all, and in most
   rows the magnitude of the reported gain was smaller than the baseline's own across-seed
   standard deviation.
-- **Any difference whose interval contains zero is described as "no detectable
-  difference", never as a gain.** `describe_comparison` enforces the wording and a unit
-  test asserts the words "gain", "improvement", "wins" and "better" cannot appear in such a
-  sentence.
+- **`derive_verdict` is the only source of a verdict, and a directional one needs both an
+  interval that excludes zero and survival of Holm correction.** `compare_paired` calls it
+  before any family is known, so only the interval speaks there; `holm_bonferroni` calls it
+  again with `significant` supplied and demotes any row the correction did not reject to
+  `no_detectable_difference`.
+- **Any difference whose verdict is not directional is described as "no detectable
+  difference", never as a gain.** `describe_comparison` reads the verdict rather than the
+  raw interval, so wording and verdict cannot disagree, and a unit test asserts the words
+  "gain", "improvement", "wins" and "better" cannot appear in such a sentence.
 
 **Mandatory baselines.** `random_policy`, `constant_channel` and `greedy_heuristic` appear
 as rows in **every** generated table. Any model filter in the analysis layer is forbidden
@@ -290,8 +295,10 @@ does not beat `random_policy`, `RESULTS.md` says exactly that. That is the resul
 the edge parameters **persist across the inner round loop and are the aggregation target**.
 The previous implementation seeded every client from the global model and computed an edge
 state that it then discarded, making the hierarchy a numerical no-op: hierarchical and flat
-FedAvg agreed to within `1.19e-07` over every tensor. A regression test now asserts the two
-are meaningfully different.
+FedAvg agreed to within <!--v:hist.fedavg_agreement_max_abs-->1.19e-07<!--/v--> over every
+tensor (an audit figure for a deleted revision, registered in
+`docs/historical_figures.yaml`; it is not derivable from `results/`). A regression test now
+asserts the two are meaningfully different.
 
 **Strict compute matching.** Every arm consumes exactly the same number of environment
 steps, and each runner reports `train_steps` as the **sum of `agent.total_env_steps` over

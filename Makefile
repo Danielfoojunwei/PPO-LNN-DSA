@@ -18,10 +18,10 @@ help:
 	@echo "suite       run the confirmatory matrix"
 	@echo "federated   run the topology study"
 	@echo "analyze     build tables, figures and claims.json"
-	@echo "report      regenerate RESULTS.md from results/"
+	@echo "report      regenerate RESULTS.md and every generated block in README/docs"
 	@echo "all         probe suite federated analyze report"
 	@echo "smoke       tiny end-to-end run (the CI budget), into \$$(SMOKE_DIR)"
-	@echo "check       verify committed tables and RESULTS.md are current"
+	@echo "check       verify committed tables, RESULTS.md and README/docs are current"
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -46,6 +46,7 @@ analyze:
 
 report:
 	$(PYTHON) scripts/make_report.py --results-dir $(RESULTS)
+	$(PYTHON) scripts/render_docs.py --results-dir $(RESULTS)
 
 all: probe suite federated analyze report
 
@@ -60,11 +61,17 @@ smoke:
 	$(PYTHON) scripts/analyze.py --results-dir $(SMOKE_DIR) --output-dir $(SMOKE_DIR)
 	$(PYTHON) scripts/make_report.py --results-dir $(SMOKE_DIR) --output $(SMOKE_DIR)/RESULTS.md
 
-# The two gates CI enforces: committed tables match a fresh analysis, and
-# RESULTS.md matches a fresh report.  Neither writes anything.
+# The three gates CI enforces: committed tables match a fresh analysis,
+# RESULTS.md matches a fresh report, and every generated region and <!--v:...-->
+# span in README.md and docs/*.md matches a fresh render.  None writes anything.
+#
+# The third gate is the one an adversarial audit proved was missing: two
+# falsified headline figures in README.md survived the whole suite because
+# nothing regenerated them.
 check:
 	$(PYTHON) scripts/analyze.py --results-dir $(RESULTS) --output-dir $(RESULTS) --check
 	$(PYTHON) scripts/make_report.py --results-dir $(RESULTS) --check
+	$(PYTHON) scripts/render_docs.py --results-dir $(RESULTS) --check
 
 clean:
 	rm -rf $(RESULTS)/raw $(RESULTS)/checkpoints $(SMOKE_DIR) .pytest_cache

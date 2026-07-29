@@ -134,7 +134,7 @@ Each model is evaluated twice on the **identical** evaluation stream: once with 
 | bursty_irregular | ppo_gru | -68.506 | -67.805 | 0.701 | -1.193 | 2.503 | 1.000 | no_detectable_difference |
 | bursty_irregular | ppo_ltc | -69.723 | -69.384 | 0.339 | -2.601 | 2.909 | 1.000 | no_detectable_difference |
 | bursty_irregular | ppo_ltc_cfc | -70.996 | -68.607 | 2.390 | -0.284 | 5.129 | 1.000 | no_detectable_difference |
-| bursty_irregular | ppo_mlp | -69.593 | -67.159 | 2.435 | 0.294 | 4.343 | 1.000 | favours_a |
+| bursty_irregular | ppo_mlp | -69.593 | -67.159 | 2.435 | 0.294 | 4.343 | 1.000 | no_detectable_difference |
 | bursty_irregular | ppo_transformer | -70.219 | -68.583 | 1.637 | -1.522 | 5.569 | 1.000 | no_detectable_difference |
 | interference_heavy | ppo_cfc | -88.197 | -87.870 | 0.327 | -3.120 | 3.712 | 1.000 | no_detectable_difference |
 | interference_heavy | ppo_cfc_dtblind | -87.846 | -88.956 | -1.111 | -3.904 | 1.854 | 1.000 | no_detectable_difference |
@@ -143,13 +143,13 @@ Each model is evaluated twice on the **identical** evaluation stream: once with 
 | interference_heavy | ppo_ltc_cfc | -87.602 | -89.481 | -1.879 | -4.538 | 0.641 | 1.000 | no_detectable_difference |
 | interference_heavy | ppo_mlp | -88.665 | -88.883 | -0.218 | -4.230 | 3.435 | 1.000 | no_detectable_difference |
 | interference_heavy | ppo_transformer | -92.209 | -89.848 | 2.361 | -0.064 | 4.636 | 1.000 | no_detectable_difference |
-| irregular_dt | ppo_cfc | -46.664 | -50.828 | -4.164 | -7.245 | -0.620 | 1.000 | favours_b |
+| irregular_dt | ppo_cfc | -46.664 | -50.828 | -4.164 | -7.245 | -0.620 | 1.000 | no_detectable_difference |
 | irregular_dt | ppo_cfc_dtblind | -52.124 | -50.821 | 1.303 | -2.615 | 5.176 | 1.000 | no_detectable_difference |
 | irregular_dt | ppo_gru | -51.861 | -51.724 | 0.137 | -2.244 | 2.773 | 1.000 | no_detectable_difference |
 | irregular_dt | ppo_ltc | -51.208 | -49.411 | 1.797 | -2.870 | 6.184 | 1.000 | no_detectable_difference |
 | irregular_dt | ppo_ltc_cfc | -50.919 | -50.460 | 0.459 | -4.485 | 5.231 | 1.000 | no_detectable_difference |
 | irregular_dt | ppo_mlp | -50.801 | -52.881 | -2.080 | -5.046 | 0.897 | 1.000 | no_detectable_difference |
-| irregular_dt | ppo_transformer | -53.748 | -48.634 | 5.114 | 1.095 | 9.286 | 1.000 | favours_a |
+| irregular_dt | ppo_transformer | -53.748 | -48.634 | 5.114 | 1.095 | 9.286 | 1.000 | no_detectable_difference |
 | non_stationary | ppo_cfc | -62.172 | -62.194 | -0.022 | -4.020 | 5.216 | 1.000 | no_detectable_difference |
 | non_stationary | ppo_cfc_dtblind | -62.034 | -63.428 | -1.394 | -5.114 | 2.118 | 1.000 | no_detectable_difference |
 | non_stationary | ppo_gru | -62.482 | -61.612 | 0.870 | -2.697 | 4.293 | 1.000 | no_detectable_difference |
@@ -159,7 +159,7 @@ Each model is evaluated twice on the **identical** evaluation stream: once with 
 | non_stationary | ppo_transformer | -63.747 | -61.931 | 1.816 | -1.463 | 5.337 | 1.000 | no_detectable_difference |
 | stationary | ppo_cfc | -49.494 | -52.802 | -3.308 | -8.477 | 1.151 | 1.000 | no_detectable_difference |
 | stationary | ppo_cfc_dtblind | -50.435 | -49.689 | 0.745 | -2.957 | 4.393 | 1.000 | no_detectable_difference |
-| stationary | ppo_gru | -49.108 | -52.972 | -3.864 | -6.990 | -0.585 | 1.000 | favours_b |
+| stationary | ppo_gru | -49.108 | -52.972 | -3.864 | -6.990 | -0.585 | 1.000 | no_detectable_difference |
 | stationary | ppo_ltc | -50.577 | -51.055 | -0.478 | -2.892 | 2.057 | 1.000 | no_detectable_difference |
 | stationary | ppo_ltc_cfc | -49.807 | -51.611 | -1.804 | -4.190 | 0.492 | 1.000 | no_detectable_difference |
 | stationary | ppo_mlp | -50.024 | -49.887 | 0.137 | -4.290 | 5.120 | 1.000 | no_detectable_difference |
@@ -233,7 +233,7 @@ F3 decomposes the hybrid the repository title names: `ppo_ltc_cfc` against each 
 | F5_learning_check | bursty_irregular | ppo_gru(trained) | ppo_gru(untrained) | 12 | 0.701 | -1.193 | 2.503 | 0.487 | 1.000 | 0.083 | no_detectable_difference |
 | F5_learning_check | bursty_irregular | ppo_ltc(trained) | ppo_ltc(untrained) | 12 | 0.339 | -2.601 | 2.909 | 0.766 | 1.000 | 0.104 | no_detectable_difference |
 | F5_learning_check | bursty_irregular | ppo_ltc_cfc(trained) | ppo_ltc_cfc(untrained) | 12 | 2.390 | -0.284 | 5.129 | 0.135 | 1.000 | 0.333 | no_detectable_difference |
-| F5_learning_check | bursty_irregular | ppo_mlp(trained) | ppo_mlp(untrained) | 12 | 2.435 | 0.294 | 4.343 | 0.052 | 1.000 | 0.472 | favours_a |
+| F5_learning_check | bursty_irregular | ppo_mlp(trained) | ppo_mlp(untrained) | 12 | 2.435 | 0.294 | 4.343 | 0.052 | 1.000 | 0.472 | no_detectable_difference |
 | F5_learning_check | bursty_irregular | ppo_transformer(trained) | ppo_transformer(untrained) | 12 | 1.637 | -1.522 | 5.569 | 0.460 | 1.000 | 0.139 | no_detectable_difference |
 | F5_learning_check | interference_heavy | ppo_cfc(trained) | ppo_cfc(untrained) | 12 | 0.327 | -3.120 | 3.712 | 0.858 | 1.000 | 0.153 | no_detectable_difference |
 | F5_learning_check | interference_heavy | ppo_cfc_dtblind(trained) | ppo_cfc_dtblind(untrained) | 12 | -1.111 | -3.904 | 1.854 | 0.480 | 1.000 | -0.229 | no_detectable_difference |
@@ -242,13 +242,13 @@ F3 decomposes the hybrid the repository title names: `ppo_ltc_cfc` against each 
 | F5_learning_check | interference_heavy | ppo_ltc_cfc(trained) | ppo_ltc_cfc(untrained) | 12 | -1.879 | -4.538 | 0.641 | 0.191 | 1.000 | -0.236 | no_detectable_difference |
 | F5_learning_check | interference_heavy | ppo_mlp(trained) | ppo_mlp(untrained) | 12 | -0.218 | -4.230 | 3.435 | 0.919 | 1.000 | -0.062 | no_detectable_difference |
 | F5_learning_check | interference_heavy | ppo_transformer(trained) | ppo_transformer(untrained) | 12 | 2.361 | -0.064 | 4.636 | 0.090 | 1.000 | 0.417 | no_detectable_difference |
-| F5_learning_check | irregular_dt | ppo_cfc(trained) | ppo_cfc(untrained) | 12 | -4.164 | -7.245 | -0.620 | 0.045 | 1.000 | -0.556 | favours_b |
+| F5_learning_check | irregular_dt | ppo_cfc(trained) | ppo_cfc(untrained) | 12 | -4.164 | -7.245 | -0.620 | 0.045 | 1.000 | -0.556 | no_detectable_difference |
 | F5_learning_check | irregular_dt | ppo_cfc_dtblind(trained) | ppo_cfc_dtblind(untrained) | 12 | 1.303 | -2.615 | 5.176 | 0.567 | 1.000 | 0.181 | no_detectable_difference |
 | F5_learning_check | irregular_dt | ppo_gru(trained) | ppo_gru(untrained) | 12 | 0.137 | -2.244 | 2.773 | 0.926 | 1.000 | -0.083 | no_detectable_difference |
 | F5_learning_check | irregular_dt | ppo_ltc(trained) | ppo_ltc(untrained) | 12 | 1.797 | -2.870 | 6.184 | 0.453 | 1.000 | 0.181 | no_detectable_difference |
 | F5_learning_check | irregular_dt | ppo_ltc_cfc(trained) | ppo_ltc_cfc(untrained) | 12 | 0.459 | -4.485 | 5.231 | 0.860 | 1.000 | 0.097 | no_detectable_difference |
 | F5_learning_check | irregular_dt | ppo_mlp(trained) | ppo_mlp(untrained) | 12 | -2.080 | -5.046 | 0.897 | 0.212 | 1.000 | -0.229 | no_detectable_difference |
-| F5_learning_check | irregular_dt | ppo_transformer(trained) | ppo_transformer(untrained) | 12 | 5.114 | 1.095 | 9.286 | 0.039 | 1.000 | 0.528 | favours_a |
+| F5_learning_check | irregular_dt | ppo_transformer(trained) | ppo_transformer(untrained) | 12 | 5.114 | 1.095 | 9.286 | 0.039 | 1.000 | 0.528 | no_detectable_difference |
 | F5_learning_check | non_stationary | ppo_cfc(trained) | ppo_cfc(untrained) | 12 | -0.022 | -4.020 | 5.216 | 0.996 | 1.000 | -0.222 | no_detectable_difference |
 | F5_learning_check | non_stationary | ppo_cfc_dtblind(trained) | ppo_cfc_dtblind(untrained) | 12 | -1.394 | -5.114 | 2.118 | 0.489 | 1.000 | -0.146 | no_detectable_difference |
 | F5_learning_check | non_stationary | ppo_gru(trained) | ppo_gru(untrained) | 12 | 0.870 | -2.697 | 4.293 | 0.646 | 1.000 | 0.083 | no_detectable_difference |
@@ -258,7 +258,7 @@ F3 decomposes the hybrid the repository title names: `ppo_ltc_cfc` against each 
 | F5_learning_check | non_stationary | ppo_transformer(trained) | ppo_transformer(untrained) | 12 | 1.816 | -1.463 | 5.337 | 0.348 | 1.000 | 0.097 | no_detectable_difference |
 | F5_learning_check | stationary | ppo_cfc(trained) | ppo_cfc(untrained) | 12 | -3.308 | -8.477 | 1.151 | 0.236 | 1.000 | -0.375 | no_detectable_difference |
 | F5_learning_check | stationary | ppo_cfc_dtblind(trained) | ppo_cfc_dtblind(untrained) | 12 | 0.745 | -2.957 | 4.393 | 0.702 | 1.000 | -0.028 | no_detectable_difference |
-| F5_learning_check | stationary | ppo_gru(trained) | ppo_gru(untrained) | 12 | -3.864 | -6.990 | -0.585 | 0.048 | 1.000 | -0.444 | favours_b |
+| F5_learning_check | stationary | ppo_gru(trained) | ppo_gru(untrained) | 12 | -3.864 | -6.990 | -0.585 | 0.048 | 1.000 | -0.444 | no_detectable_difference |
 | F5_learning_check | stationary | ppo_ltc(trained) | ppo_ltc(untrained) | 12 | -0.478 | -2.892 | 2.057 | 0.727 | 1.000 | -0.139 | no_detectable_difference |
 | F5_learning_check | stationary | ppo_ltc_cfc(trained) | ppo_ltc_cfc(untrained) | 12 | -1.804 | -4.190 | 0.492 | 0.180 | 1.000 | -0.306 | no_detectable_difference |
 | F5_learning_check | stationary | ppo_mlp(trained) | ppo_mlp(untrained) | 12 | 0.137 | -4.290 | 5.120 | 0.954 | 1.000 | -0.076 | no_detectable_difference |
@@ -299,8 +299,8 @@ F3 decomposes the hybrid the repository title names: `ppo_ltc_cfc` against each 
 | F6_vs_greedy_baseline | stationary | ppo_mlp | greedy_heuristic | 12 | -69.668 | -72.875 | -66.159 | 0.000 | 0.017 | -1.000 | favours_b |
 | F6_vs_greedy_baseline | stationary | ppo_transformer | greedy_heuristic | 12 | -69.937 | -72.473 | -67.582 | 0.000 | 0.017 | -1.000 | favours_b |
 | F7_federated | federated | flat_federated | centralized | 12 | -1.750 | -4.883 | 1.327 | 0.315 | 0.315 | -0.312 | no_detectable_difference |
-| F7_federated | federated | hierarchical_federated | centralized | 12 | -2.744 | -5.390 | -0.058 | 0.082 | 0.245 | -0.472 | favours_b |
-| F7_federated | federated | hierarchical_federated | flat_federated | 12 | -0.994 | -2.582 | -0.009 | 0.125 | 0.250 | -0.146 | favours_b |
+| F7_federated | federated | hierarchical_federated | centralized | 12 | -2.744 | -5.390 | -0.058 | 0.082 | 0.245 | -0.472 | no_detectable_difference |
+| F7_federated | federated | hierarchical_federated | flat_federated | 12 | -0.994 | -2.582 | -0.009 | 0.125 | 0.250 | -0.146 | no_detectable_difference |
 
 ## Federated topology study (family F7)
 

@@ -51,6 +51,7 @@ __all__ = [
     "cliffs_delta_magnitude",
     "compare_paired",
     "describe_comparison",
+    "derive_verdict",
     "holm_bonferroni",
     "paired_bootstrap_ci",
     "paired_sign_flip_test",
@@ -310,6 +311,44 @@ def cliffs_delta_magnitude(delta: float) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Verdict derivation
+# --------------------------------------------------------------------------- #
+
+
+def derive_verdict(
+    mean_difference: float,
+    ci_low: float,
+    ci_high: float,
+    significant: bool | None = None,
+) -> str:
+    """The single place a directional verdict is allowed to come from.
+
+    Two conditions must **both** hold before this function will name a winner:
+
+    1. the bootstrap interval excludes zero, and
+    2. the comparison survives multiplicity correction within its family.
+
+    Before :func:`holm_bonferroni` has run, ``significant`` is ``None`` and only
+    condition 1 is knowable, so the interval alone governs.  Once correction has
+    run, ``significant is False`` demotes the verdict to
+    ``no_detectable_difference`` **even when the raw interval excludes zero**.
+
+    That demotion is the point of this function.  An audit of the previous
+    output found six published rows carrying ``favours_a``/``favours_b`` beside
+    Holm-adjusted p-values of 1.000, 0.245 and 0.250 — a directional claim on a
+    comparison the pre-registered protocol had already declined to reject.  The
+    protocol governs: if correction does not reject, the repository does not get
+    to name a direction.  The raw interval and the raw p are still published in
+    ``comparisons.csv`` for anyone re-analysing.
+    """
+    if ci_low <= 0.0 <= ci_high:
+        return VERDICT_NO_DIFFERENCE
+    if significant is False:
+        return VERDICT_NO_DIFFERENCE
+    return VERDICT_FAVOURS_A if float(mean_difference) > 0.0 else VERDICT_FAVOURS_B
+
+
+# --------------------------------------------------------------------------- #
 # The public comparison entry point
 # --------------------------------------------------------------------------- #
 
@@ -344,12 +383,9 @@ def compare_paired(
     delta = cliffs_delta(x, y)
 
     mean_difference = float(d.mean())
-    if ci_low <= 0.0 <= ci_high:
-        verdict = VERDICT_NO_DIFFERENCE
-    elif mean_difference > 0.0:
-        verdict = VERDICT_FAVOURS_A
-    else:
-        verdict = VERDICT_FAVOURS_B
+    # Uncorrected: no family is known yet, so only the interval can speak.
+    # holm_bonferroni re-derives this with `significant` supplied.
+    verdict = derive_verdict(mean_difference, ci_low, ci_high, significant=None)
 
     return PairedResult(
         comparison_id=comparison_id,
@@ -391,6 +427,12 @@ def holm_bonferroni(
     ``significant`` is ``holm_adjusted_p <= alpha``.  Holm controls the
     family-wise error rate without assuming independence, which matters here
     because comparisons inside a family share arms and are correlated.
+
+    Correction is also where the **verdict** is finalised: a comparison whose
+    interval excludes zero but whose adjusted p does not reject is re-derived to
+    ``no_detectable_difference`` by :func:`derive_verdict`.  A directional
+    verdict beside a non-rejecting adjusted p is an overclaim, and this is the
+    only place with enough information to prevent it.
     """
     items = list(results)
     if not items:
@@ -414,10 +456,18 @@ def holm_bonferroni(
         running = max(running, value)
         adjusted[idx] = running
 
-    return [
-        replace(r, holm_adjusted_p=adjusted[i], significant=bool(adjusted[i] <= alpha))
-        for i, r in enumerate(items)
-    ]
+    out: list[PairedResult] = []
+    for i, r in enumerate(items):
+        significant = bool(adjusted[i] <= alpha)
+        out.append(
+            replace(
+                r,
+                holm_adjusted_p=adjusted[i],
+                significant=significant,
+                verdict=derive_verdict(r.mean_difference, r.ci_low, r.ci_high, significant),
+            )
+        )
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -428,15 +478,17 @@ def holm_bonferroni(
 def describe_comparison(result: PairedResult, decimals: int = 3) -> str:
     """Render a comparison as prose, in the only wording principle P1 permits.
 
-    Whenever the interval contains zero the sentence says
-    ``"no detectable difference"`` and gives no direction.  It is never called a
-    gain, an improvement or a win, regardless of the sign of the point estimate.
+    The sentence follows the **verdict**, not the raw interval, so a comparison
+    demoted by :func:`derive_verdict` for failing multiplicity correction is
+    described as ``"no detectable difference"`` too.  Whenever the verdict is
+    not directional the sentence gives no direction: it is never called a gain,
+    an improvement or a win, regardless of the sign of the point estimate.
     """
     fmt = f"{{:.{decimals}f}}"
     ci = f"95% CI [{fmt.format(result.ci_low)}, {fmt.format(result.ci_high)}]"
     tail = f"{ci}, p={fmt.format(result.p_value)} ({result.p_method}), n={result.n_pairs}"
 
-    if result.interval_contains_zero():
+    if result.verdict == VERDICT_NO_DIFFERENCE:
         return (
             f"{result.label_a} vs {result.label_b} on {result.scenario}: "
             f"{NO_DIFFERENCE_PHRASE} "

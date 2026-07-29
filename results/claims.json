@@ -460,7 +460,7 @@
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_mlp:trained_vs_untrained:bursty_irregular",
-      "statement": "ppo_mlp(trained) scored 2.435 higher than ppo_mlp(untrained) on bursty_irregular (95% CI [0.294, 4.343], p=0.052 (exact_sign_flip), n=12, Cliff's delta 0.472 [medium]).",
+      "statement": "ppo_mlp(trained) vs ppo_mlp(untrained) on bursty_irregular: no detectable difference (mean difference 2.435, 95% CI [0.294, 4.343], p=0.052 (exact_sign_flip), n=12).",
       "source_file": "results/tables/comparisons.csv",
       "source_column": "mean_difference",
       "value": 2.434836,
@@ -468,7 +468,7 @@
       "ci_high": 4.343306,
       "p_value": 0.052246,
       "holm_adjusted_p": 1.0,
-      "verdict": "favours_a"
+      "verdict": "no_detectable_difference"
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_transformer:trained_vs_untrained:bursty_irregular",
@@ -568,7 +568,7 @@
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_cfc:trained_vs_untrained:irregular_dt",
-      "statement": "ppo_cfc(trained) scored 4.164 lower than ppo_cfc(untrained) on irregular_dt (95% CI [-7.245, -0.620], p=0.045 (exact_sign_flip), n=12, Cliff's delta -0.556 [large]).",
+      "statement": "ppo_cfc(trained) vs ppo_cfc(untrained) on irregular_dt: no detectable difference (mean difference -4.164, 95% CI [-7.245, -0.620], p=0.045 (exact_sign_flip), n=12).",
       "source_file": "results/tables/comparisons.csv",
       "source_column": "mean_difference",
       "value": -4.164383,
@@ -576,7 +576,7 @@
       "ci_high": -0.620305,
       "p_value": 0.04541,
       "holm_adjusted_p": 1.0,
-      "verdict": "favours_b"
+      "verdict": "no_detectable_difference"
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_cfc_dtblind:trained_vs_untrained:irregular_dt",
@@ -640,7 +640,7 @@
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_transformer:trained_vs_untrained:irregular_dt",
-      "statement": "ppo_transformer(trained) scored 5.114 higher than ppo_transformer(untrained) on irregular_dt (95% CI [1.095, 9.286], p=0.039 (exact_sign_flip), n=12, Cliff's delta 0.528 [large]).",
+      "statement": "ppo_transformer(trained) vs ppo_transformer(untrained) on irregular_dt: no detectable difference (mean difference 5.114, 95% CI [1.095, 9.286], p=0.039 (exact_sign_flip), n=12).",
       "source_file": "results/tables/comparisons.csv",
       "source_column": "mean_difference",
       "value": 5.113782,
@@ -648,7 +648,7 @@
       "ci_high": 9.286269,
       "p_value": 0.038574,
       "holm_adjusted_p": 1.0,
-      "verdict": "favours_a"
+      "verdict": "no_detectable_difference"
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_cfc:trained_vs_untrained:non_stationary",
@@ -760,7 +760,7 @@
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_gru:trained_vs_untrained:stationary",
-      "statement": "ppo_gru(trained) scored 3.864 lower than ppo_gru(untrained) on stationary (95% CI [-6.990, -0.585], p=0.048 (exact_sign_flip), n=12, Cliff's delta -0.444 [medium]).",
+      "statement": "ppo_gru(trained) vs ppo_gru(untrained) on stationary: no detectable difference (mean difference -3.864, 95% CI [-6.990, -0.585], p=0.048 (exact_sign_flip), n=12).",
       "source_file": "results/tables/comparisons.csv",
       "source_column": "mean_difference",
       "value": -3.864139,
@@ -768,7 +768,7 @@
       "ci_high": -0.585302,
       "p_value": 0.04834,
       "holm_adjusted_p": 1.0,
-      "verdict": "favours_b"
+      "verdict": "no_detectable_difference"
     },
     {
       "claim_id": "CLAIM.CMP.F5_learning_check:ppo_ltc:trained_vs_untrained:stationary",
@@ -1252,7 +1252,7 @@
     },
     {
       "claim_id": "CLAIM.CMP.F7:hier_vs_centralized",
-      "statement": "hierarchical_federated scored 2.744 lower than centralized on federated (95% CI [-5.390, -0.058], p=0.082 (exact_sign_flip), n=12, Cliff's delta -0.472 [medium]).",
+      "statement": "hierarchical_federated vs centralized on federated: no detectable difference (mean difference -2.744, 95% CI [-5.390, -0.058], p=0.082 (exact_sign_flip), n=12).",
       "source_file": "results/tables/comparisons.csv",
       "source_column": "mean_difference",
       "value": -2.744374,
@@ -1260,11 +1260,11 @@
       "ci_high": -0.057638,
       "p_value": 0.081543,
       "holm_adjusted_p": 0.244629,
-      "verdict": "favours_b"
+      "verdict": "no_detectable_difference"
     },
     {
       "claim_id": "CLAIM.CMP.F7:hier_vs_flat",
-      "statement": "hierarchical_federated scored 0.994 lower than flat_federated on federated (95% CI [-2.582, -0.009], p=0.125 (exact_sign_flip), n=12, Cliff's delta -0.146 [negligible]).",
+      "statement": "hierarchical_federated vs flat_federated on federated: no detectable difference (mean difference -0.994, 95% CI [-2.582, -0.009], p=0.125 (exact_sign_flip), n=12).",
       "source_file": "results/tables/comparisons.csv",
       "source_column": "mean_difference",
       "value": -0.994162,
@@ -1272,7 +1272,7 @@
       "ci_high": -0.008986,
       "p_value": 0.125,
       "holm_adjusted_p": 0.25,
-      "verdict": "favours_b"
+      "verdict": "no_detectable_difference"
     },
     {
       "claim_id": "CLAIM.RANK.greedy_heuristic",

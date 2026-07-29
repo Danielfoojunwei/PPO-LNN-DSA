@@ -66,8 +66,8 @@ identical in every respect except the factor under study. It is reported first i
 ### 2.2 Families
 
 Multiplicity is controlled by Holm–Bonferroni **within** each declared family at
-`alpha = 0.05`. Family membership is fixed in advance; nothing is regrouped after seeing
-results.
+α = <!--v:prereg.alpha-->0.05<!--/v--> (read from `configs/preregistration.yaml`). Family
+membership is fixed in advance; nothing is regrouped after seeing results.
 
 | family | contrast | comparisons |
 |---|---|---|
@@ -258,9 +258,22 @@ different correction can apply it to the raw values.
 - Numbers are formatted to three decimals. The previous version reported ablation gains to
   seventeen significant digits with no uncertainty column, in a table where most gains were
   smaller than the baseline's own across-seed standard deviation.
-- **Any comparison whose interval contains zero is described as "no detectable difference",
-  never as a gain.** Where an interval marginally excludes zero but the pre-registered test
-  does not reject after correction, the test governs and no difference is claimed.
+- **A directional verdict requires two conditions, not one: the interval must exclude zero
+  *and* the comparison must survive Holm correction within its family.** `derive_verdict`
+  in `dsa/analysis/stats.py` is the only place a verdict comes from, and
+  `holm_bonferroni` re-derives it once `significant` is known, so a row whose interval
+  excludes zero but whose adjusted p does not reject is published as
+  `no_detectable_difference`. In the committed evidence
+  <!--v:cmp.excludes_zero_not_significant-->6<!--/v--> of
+  <!--v:cmp.total-->104<!--/v--> comparisons are in exactly that position; an earlier build
+  of this analysis published all <!--v:cmp.excludes_zero_not_significant-->6<!--/v--> with a
+  directional `favours_a`/`favours_b` verdict beside an adjusted p that did not reject,
+  which is exactly the overclaiming this document exists to forbid. The raw interval, the raw p and
+  the adjusted p all stay in `comparisons.csv`, so the demotion is fully reversible by
+  anyone re-analysing.
+- **Any comparison whose verdict is not directional is described as "no detectable
+  difference", never as a gain.** `describe_comparison` follows the verdict, not the raw
+  interval, so the prose and the verdict column cannot disagree.
 - Baselines appear as rows in every table. `tests/test_no_filter.py` fails the build if any
   file under `dsa/analysis/` or `scripts/` contains a hardcoded model list used as a filter.
 
@@ -312,6 +325,17 @@ Every number in `RESULTS.md` and in `README.md` carries a `claim_id`. `results/c
 maps each id to its statement, source file, source column, value, interval, p-value,
 adjusted p and verdict.
 
+Since an audit falsified two of `README.md`'s headline figures without a single test going
+red, citation is no longer enough on its own: **the numbers are generated, not cited.**
+`scripts/render_docs.py` writes every metric in `README.md` and `docs/*.md`, either inside a
+`<!-- BEGIN GENERATED: name -->` region or inside an inline span opened by `<!--v:key-->`,
+and `--check` diffs the committed documents against a fresh render. A table that cites a
+`claim_id` renders *that claim's* value, so corrupting `results/claims.json` changes the
+document and the diff fails. The one exception is
+[`docs/historical_figures.yaml`](historical_figures.yaml), which holds audit figures for
+revisions whose artifacts were deleted; those cannot be recomputed from `results/` and each
+must record what was measured and against what before the script will run.
+
 ```bash
 # What does a claim say, and where did it come from?
 python - <<'PY'
@@ -321,8 +345,8 @@ c = claims["CLAIM.PRIMARY.P1"]
 print(c["statement"]); print(c["source_file"], "::", c["source_column"], "=", c["value"])
 PY
 
-# Are the committed tables and report actually derived from the committed CSVs?
-make check          # analyze --check  +  make_report --check ; writes nothing
+# Are the committed tables, report and documents actually derived from the committed CSVs?
+make check          # analyze --check + make_report --check + render_docs --check
 ```
 
 To re-derive the primary comparison without trusting the analysis layer at all: read
@@ -331,14 +355,18 @@ To re-derive the primary comparison without trusting the analysis layer at all: 
 `2^12` sign vectors. The p-value is the fraction of sign assignments whose mean absolute
 difference is at least the observed one.
 
-Three gates keep this honest, and CI runs all of them:
+Four gates keep this honest, and CI runs all of them:
 
 1. `pytest -q` — the unit suite, including the seeding, no-filter and no-hardcoded-metric
-   tests.
+   tests. The last of these now scans markdown table cells and inline code spans instead of
+   skipping them; skipping them is how two falsified headline figures once survived.
 2. Order-invariance — the smoke suite run with `--models` in opposite orders must produce
    identical non-`wall_` columns.
-3. `make check` — regenerated tables and `RESULTS.md` must be bit-identical to what is
-   committed.
+3. `make check` — regenerated tables, `RESULTS.md`, `README.md` and `docs/*.md` must all be
+   bit-identical to what is committed.
+4. A deliberately falsified `claims.json` — CI corrupts `CLAIM.PRIMARY.P1` in a scratch copy
+   of `results/` on every run and fails if `render_docs.py --check` does *not* reject it.
+   A gate nobody has watched fail is not a gate.
 
 ## 10. Known limits of this protocol
 

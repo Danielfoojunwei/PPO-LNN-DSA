@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 import torch
 
+import dsa.federated.runners as runners
 from dsa.envs.scenarios import get_scenario
 from dsa.envs.spectrum import SpectrumEnv
 from dsa.federated.aggregate import (
@@ -872,3 +873,145 @@ def test_pooled_env_does_not_auto_reset():
         env.step(np.zeros(1, dtype=np.int64))
     with pytest.raises(RuntimeError, match="does not auto-reset"):
         env.step(np.zeros(1, dtype=np.int64))
+
+
+# --------------------------------------------------------------------------- #
+# D7 / M13 -- the client-initialisation mechanism itself
+# --------------------------------------------------------------------------- #
+# `test_hierarchical_is_not_flat_fedavg` compares the two arms' *outcomes*, and it
+# survives reverting `init_state=theta_edge[e]` to `init_state=theta_cloud`: a
+# hierarchy whose clients all re-initialise from the cloud still differs from flat
+# FedAvg, for the incidental reason that it aggregates to the cloud `cloud_rounds`
+# times where flat aggregates `cloud_rounds * edge_rounds_per_cloud_round` times.
+# The tests below therefore observe the parameters actually handed to each client,
+# which is the line the defect lived on.
+
+
+@pytest.fixture(scope="module")
+def hierarchical_init_trace() -> list[dict]:
+    """Every ``init_state`` a client received during a real hierarchical run.
+
+    Two cloud rounds of two edge rounds is the smallest topology containing all
+    three distinct sources of a client's starting parameters: the seed cloud model
+    at ``(r=0, k=0)``, the client's own edge aggregate at ``(r=0, k=1)``, and the
+    re-synchronised cloud model at ``(r=1, k=0)``.
+    """
+    fed = _tiny(cloud_rounds=2, edge_rounds_per_cloud_round=2)
+    real = runners._train_local_phase
+    trace: list[dict] = []
+
+    def spy(fed_, base_seed, hp, init_state, client, arm_seed_label, cloud_round, edge_round):
+        out = real(
+            fed_, base_seed, hp, init_state, client, arm_seed_label, cloud_round, edge_round
+        )
+        trace.append(
+            {
+                "cloud_round": int(cloud_round),
+                "edge_round": int(edge_round),
+                "client_id": int(client.client_id),
+                "edge_id": int(client.edge_id),
+                "init": {k: v.detach().clone() for k, v in dict(init_state).items()},
+                "out": {k: v.detach().clone() for k, v in out[0].items()},
+            }
+        )
+        return out
+
+    runners._train_local_phase = spy
+    try:
+        runners.hierarchical_federated_core(fed, 7)
+    finally:
+        runners._train_local_phase = real
+    return trace
+
+
+def _phase(trace: list[dict], cloud_round: int, edge_round: int) -> list[dict]:
+    return sorted(
+        (
+            t
+            for t in trace
+            if t["cloud_round"] == cloud_round and t["edge_round"] == edge_round
+        ),
+        key=lambda t: t["client_id"],
+    )
+
+
+def _max_abs_diff(a, b) -> float:
+    assert sorted(a) == sorted(b)
+    return max(
+        float((a[k].to(torch.float64) - b[k].to(torch.float64)).abs().max()) for k in a
+    )
+
+
+def test_a_client_starts_from_its_own_edge_not_from_the_cloud(hierarchical_init_trace):
+    """Defect D7, part one, pinned at the mechanism.
+
+    At edge round ``k = 1`` a client must be handed its **own edge's** aggregate of
+    the ``k = 0`` client models -- not the cloud model, and not the other edge's
+    aggregate.  The three are constructed to be genuinely different points, which is
+    asserted before the equality is, so the test cannot pass vacuously.
+    """
+    trace = hierarchical_init_trace
+    first, second = _phase(trace, 0, 0), _phase(trace, 0, 1)
+    assert len(first) == 4 and len(second) == 4
+
+    # At (0, 0) every client legitimately starts from the one cloud model.
+    cloud = first[0]["init"]
+    for t in first:
+        assert _max_abs_diff(t["init"], cloud) == 0.0, t["client_id"]
+
+    # The edge aggregates that phase (0, 0) produced.
+    edge_agg = {
+        e: fedavg([t["out"] for t in first if t["edge_id"] == e]) for e in (0, 1)
+    }
+    # Non-vacuity: cloud, edge 0 and edge 1 are three genuinely different points.
+    assert _max_abs_diff(edge_agg[0], edge_agg[1]) > 1e-5
+    assert _max_abs_diff(edge_agg[0], cloud) > 1e-5
+    assert _max_abs_diff(edge_agg[1], cloud) > 1e-5
+
+    for t in second:
+        own, other = t["edge_id"], 1 - t["edge_id"]
+        assert _max_abs_diff(t["init"], edge_agg[own]) == 0.0, (
+            f"client {t['client_id']} did not start from edge {own}'s aggregate"
+        )
+        assert _max_abs_diff(t["init"], edge_agg[other]) > 1e-5, t["client_id"]
+        assert _max_abs_diff(t["init"], cloud) > 1e-5, (
+            f"client {t['client_id']} started from the cloud model (defect D7)"
+        )
+
+
+def test_the_edge_aggregate_persists_across_edge_rounds(hierarchical_init_trace):
+    """Defect D7, part two: ``theta_edge[e]`` must survive the ``k`` loop.
+
+    Stated as a property of what the clients received: at ``k = 1`` the two edges'
+    clients start from two different points, and the clients on one edge all start
+    from the same point.  A hierarchy that recomputed the edge aggregate and dropped
+    it would put all four clients back on one shared model.
+    """
+    second = _phase(hierarchical_init_trace, 0, 1)
+    by_edge = {e: [t for t in second if t["edge_id"] == e] for e in (0, 1)}
+    for e, members in by_edge.items():
+        assert len(members) == 2, e
+        assert _max_abs_diff(members[0]["init"], members[1]["init"]) == 0.0, e
+    assert _max_abs_diff(by_edge[0][0]["init"], by_edge[1][0]["init"]) > 1e-5
+
+
+def test_the_cloud_round_resynchronises_every_edge(hierarchical_init_trace):
+    """The complement, so that "start from your edge" cannot be satisfied by an arm
+    that never synchronises: at the top of cloud round 1 every client starts from the
+    same model again, and that model is the client-count-weighted average of the two
+    edge aggregates the previous phase produced.
+    """
+    trace = hierarchical_init_trace
+    second, third = _phase(trace, 0, 1), _phase(trace, 1, 0)
+    assert len(third) == 4
+
+    resync = third[0]["init"]
+    for t in third:
+        assert _max_abs_diff(t["init"], resync) == 0.0, t["client_id"]
+
+    edge_agg = [fedavg([t["out"] for t in second if t["edge_id"] == e]) for e in (0, 1)]
+    expected = fedavg(edge_agg, weights=[2.0, 2.0])
+    assert _max_abs_diff(resync, expected) == 0.0
+    # ... and the re-synchronised model is not simply one of the edges.
+    assert _max_abs_diff(resync, edge_agg[0]) > 1e-5
+    assert _max_abs_diff(resync, edge_agg[1]) > 1e-5

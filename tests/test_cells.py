@@ -24,6 +24,7 @@ from dsa.models.cells import (
     LSTMBlock,
     LTCCell,
     MLPBlock,
+    RecurrentBlockBase,
 )
 from dsa.models.policy import deterministic_init_
 
@@ -575,3 +576,131 @@ def test_lstm_state_is_h_and_c():
     with torch.no_grad():
         out, state = block(u, block.initial_state(BATCH), _dt(1.0))
     assert torch.equal(state[:, :H], out)
+
+
+# ===========================================================================
+# M29b -- the reference unroll must keep the hidden trajectory in the graph
+# ===========================================================================
+# `RecurrentBlockBase.unroll` is the only place BPTT can be severed, and severing
+# it is invisible to every value- or shape-based assertion: outputs, states, step /
+# unroll equivalence and even "every parameter has a non-zero gradient" all survive
+# `state.detach()` untouched, because the last timestep still reaches the loss
+# directly.  What detach destroys is the *path through time*, so these tests assert
+# on the gradient of an early input and of the initial state, which can only reach
+# a late output through the carried state.
+
+
+class _DetachingUnrollBlock(GRUBlock):
+    """Negative control: the mutation this section exists to catch.
+
+    Identical to :meth:`RecurrentBlockBase.unroll` except for the ``state.detach()``
+    that severs backpropagation through time.  Any test claiming to detect a severed
+    BPTT must fail against this block, and
+    ``test_bptt_check_rejects_a_detaching_unroll`` asserts exactly that.
+    """
+
+    def unroll(self, u_seq, state, dt_seq):
+        outputs = []
+        for t in range(u_seq.shape[1]):
+            y, state = self.forward(u_seq[:, t], state.detach(), dt_seq[:, t])
+            outputs.append(y)
+        return torch.stack(outputs, dim=1), state
+
+
+#: Stateful blocks that inherit the reference ``unroll``.  ``mlp`` is memoryless and
+#: ``attn`` overrides ``unroll`` with a batched attention path, so neither is served
+#: by the loop under test here.
+BASE_UNROLL_STATEFUL_KINDS = tuple(
+    kind
+    for kind, cls in CELL_REGISTRY.items()
+    if cls.unroll is RecurrentBlockBase.unroll
+)
+
+
+def _bptt_grads(block, length: int = 6, dt_value: float = 0.3):
+    """Gradients of a *last-timestep* loss w.r.t. the initial state and the inputs.
+
+    ``dt`` is small so that continuous-time cells retain a long memory; a large
+    ``dt`` closes the CfC time gate and makes the through-time gradient physically
+    (not structurally) small.
+    """
+    g = _gen(41)
+    u_seq = torch.randn(BATCH, length, H, generator=g, requires_grad=True)
+    dt_seq = torch.full((BATCH, length), float(dt_value))
+    state = block.initial_state(BATCH).clone().requires_grad_(True)
+    outputs, _final = block.unroll(u_seq, state, dt_seq)
+    loss = outputs[:, -1].sum()
+    grad_state, grad_u = torch.autograd.grad(
+        loss, [state, u_seq], allow_unused=True, retain_graph=True
+    )
+    return loss, grad_state, grad_u
+
+
+@pytest.mark.parametrize("kind", BASE_UNROLL_STATEFUL_KINDS)
+def test_unroll_backpropagates_through_time(kind):
+    """The last output must be differentiable w.r.t. the *first* input and the
+    initial state.  ``state.detach()`` in the unroll loop makes both exactly zero
+    (the initial state leaves the graph entirely), while leaving every other
+    property this suite checks intact."""
+    block = _make(CELL_REGISTRY[kind], seed=40)
+    block.train()
+    assert block.state_size > 0, kind
+    _loss, grad_state, grad_u = _bptt_grads(block)
+
+    assert grad_state is not None, (
+        f"{kind}: the initial state is not in the autograd graph of the final "
+        "output at all -- the recurrent path has been severed"
+    )
+    assert float(grad_state.abs().max()) > 0.0, kind
+    # The earliest input can only reach the final output through the carried state.
+    assert float(grad_u[:, 0].abs().max()) > 0.0, f"{kind}: no gradient through time"
+    # Sanity: the direct (same-timestep) path is intact too, so a failure above is
+    # specifically a through-time failure and not a dead block.
+    assert float(grad_u[:, -1].abs().max()) > 0.0, kind
+
+
+def test_bptt_check_rejects_a_detaching_unroll():
+    """Teeth for ``test_unroll_backpropagates_through_time``.
+
+    The detaching block reproduces the mutation exactly: it still yields non-zero
+    parameter gradients and a live same-timestep input gradient, so the pre-existing
+    tests would pass it -- and the two through-time quantities are exactly dead.
+    """
+    block = _make(_DetachingUnrollBlock, seed=40)
+    block.train()
+    loss, grad_state, grad_u = _bptt_grads(block)
+
+    assert grad_state is None, "the detaching control kept the initial state in the graph"
+    assert float(grad_u[:, 0].abs().max()) == 0.0
+    assert float(grad_u[:, -1].abs().max()) > 0.0
+
+    # ... and it passes the checks the suite already had.
+    params = [p for p in block.parameters()]
+    grads = torch.autograd.grad(loss, params, allow_unused=True)
+    assert any(gr is not None and float(gr.abs().sum()) > 0.0 for gr in grads)
+
+
+@pytest.mark.parametrize("kind", BASE_UNROLL_STATEFUL_KINDS)
+def test_detaching_unroll_is_numerically_invisible(kind):
+    """Why a value assertion cannot catch M29b, stated as a test.
+
+    Detaching changes no output value anywhere -- forward numerics are identical --
+    so the whole of this file's step/unroll-equivalence machinery is blind to it.
+    This is the reason the gradient assertions above exist.
+    """
+    block = _make(CELL_REGISTRY[kind], seed=42)
+    block.eval()
+    g = _gen(43)
+    length = 7
+    seq = torch.randn(BATCH, length, H, generator=g)
+    dt_seq = torch.rand(BATCH, length, generator=g) + 0.2
+    state = block.initial_state(BATCH)
+    with torch.no_grad():
+        reference, ref_state = block.unroll(seq, state, dt_seq)
+        detached_out, detached_state = [], state
+        for t in range(length):
+            y, detached_state = block.forward(seq[:, t], detached_state.detach(), dt_seq[:, t])
+            detached_out.append(y)
+        detached_out = torch.stack(detached_out, dim=1)
+    assert torch.equal(reference, detached_out), kind
+    assert torch.equal(ref_state, detached_state), kind

@@ -257,8 +257,10 @@ were asked to *acquire* them from reward.
 
 Capacity is a confound unless it is controlled, and in the previous version it was not: the
 largest model had more than twice the parameters of the smallest, and parameter count
-correlated with reward at Spearman `0.829` across the model set. The two "liquid winners"
-were simply the two biggest networks.
+correlated with reward at Spearman <!--v:hist.spearman_param_reward-->0.829<!--/v--> across
+the model set (an audit figure for a deleted revision, registered in
+`docs/historical_figures.yaml`; it is not derivable from `results/`). The two "liquid
+winners" were simply the two biggest networks.
 
 The rule now: a common parameter target with a tight tolerance, and the hidden width `H` is
 **solved**, never hardcoded. `solve_hidden_dim` bisects for the crossing and checks the

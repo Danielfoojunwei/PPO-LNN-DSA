@@ -22,6 +22,7 @@ from dsa.envs.vector import SyncVectorEnv
 from dsa.learner.buffer import SequenceBatch, SequenceRolloutBuffer
 from dsa.learner.evaluate import evaluate_policy
 from dsa.learner.ppo import PPOHyperParams, RecurrentPPO, compute_gae, train
+from dsa.models.policy import RecurrentActorCritic
 from dsa.models.registry import MODEL_REGISTRY, build_model
 from dsa.seeding import derive_seed, make_torch_generator
 
@@ -683,3 +684,213 @@ def test_hparams_to_dict_is_serialisable():
     assert d["num_envs"] == 16 and d["horizon"] == 64
     assert d["update_epochs"] == 6 and d["num_sequence_minibatches"] == 4
     assert all(isinstance(v, (int, float)) for v in d.values())
+
+
+# --------------------------------------------------------------------------- #
+# 12. M24 -- evaluation must run the whole module tree in eval mode
+# --------------------------------------------------------------------------- #
+# `evaluate_policy` calling `policy.train()` instead of `policy.eval()` was invisible
+# to the entire suite: the shipped registry uses dropout = 0.0 everywhere, so the
+# mode flag has no numerical consequence *for the shipped models*.  It is still a
+# contract -- the flag is what makes the guarantee robust to any future block that
+# behaves differently in the two modes -- so it is pinned twice below: structurally,
+# by watching `.training` on every submodule during a real evaluation, and
+# numerically, on a deliberately dropout-carrying policy.
+
+
+def _record_module_modes(policy) -> list[dict[str, bool]]:
+    """Snapshot ``.training`` for every submodule on each ``policy.step`` call.
+
+    Instrumenting ``step`` rather than the whole call means the modes are sampled
+    exactly when the policy is being used to produce actions -- the moment at which
+    a train/eval discrepancy would matter.
+    """
+    real_step = policy.step
+    seen: list[dict[str, bool]] = []
+
+    def spy(obs, dt, state):
+        seen.append({(name or "<root>"): bool(m.training) for name, m in policy.named_modules()})
+        return real_step(obs, dt, state)
+
+    policy.step = spy
+    return seen
+
+
+@pytest.mark.parametrize("entry_mode", [True, False])
+def test_evaluate_policy_runs_every_submodule_in_eval_mode(entry_mode):
+    """Every submodule must be in eval mode for the whole evaluation, whichever mode
+    the policy was handed in, and the caller's mode must be restored afterwards."""
+    cfg = short_config()
+    model = build_model("ppo_transformer", 4 * cfg.num_channels + 8, cfg.num_channels, seed=11)
+    model.train(entry_mode)
+    seen = _record_module_modes(model)
+
+    evaluate_policy(model, cfg, eval_seeds(7, "stationary", 3))
+
+    assert seen, "the probe never fired -- evaluate_policy did not call policy.step"
+    offenders = sorted({name for snapshot in seen for name, training in snapshot.items() if training})
+    assert not offenders, f"submodules left in training mode during evaluation: {offenders}"
+    assert model.training is entry_mode
+
+
+def test_evaluation_of_a_dropout_carrying_policy_is_deterministic():
+    """The numerical consequence of the mode contract, made observable.
+
+    The registry ships ``dropout = 0.0``, so this builds a policy that does behave
+    differently in the two modes.  In training mode its dropout masks are drawn from
+    the *global* torch RNG, so two evaluations under different global RNG states
+    would disagree -- and evaluation would additionally be consuming the training
+    stream, which spec section 4.4 rule 6 forbids.
+    """
+    cfg = short_config()
+    model = RecurrentActorCritic(
+        obs_dim=4 * cfg.num_channels + 8,
+        action_dim=cfg.num_channels,
+        cell_kinds=("attn", "attn"),
+        hidden_dim=16,
+        generator=torch.Generator().manual_seed(5),
+        cell_kwargs={"num_heads": 1, "dropout": 0.5},
+    )
+    seeds = eval_seeds(7, "stationary", 4)
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(0)
+        first, first_rows = evaluate_policy(model, cfg, seeds)
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(987_654_321)
+        second, second_rows = evaluate_policy(model, cfg, seeds)
+    assert first == second
+    assert first_rows == second_rows
+
+
+# --------------------------------------------------------------------------- #
+# 13. M28 -- advantage normalisation is over the whole batch
+# --------------------------------------------------------------------------- #
+
+
+def test_advantages_are_normalised_over_the_whole_batch_not_per_minibatch():
+    """Rule 5 of the module contract, pinned by its observable consequence.
+
+    With ``learning_rate = 0`` the parameters never move, so the PPO ratio is
+    exactly 1 in every minibatch of every epoch, ``surr1 == surr2 == adv_mb`` and
+    the policy loss of minibatch ``m`` collapses to ``-mean(adv_norm[idx_m])``.
+    The reported ``policy_loss`` is then a closed form of whichever normalisation
+    the update actually applied, and the two candidates disagree:
+
+    * whole batch (the contract): each minibatch keeps its own offset from the
+      batch mean, and those offsets do not cancel when the minibatches have
+      unequal sizes;
+    * per minibatch (the bug): every minibatch is re-centred, so every
+      per-minibatch advantage mean -- and hence the reported policy loss -- is
+      exactly 0.
+
+    Hence 5 sequences split 3 + 2.  With equal-sized minibatches the per-epoch
+    means would cancel to the batch mean under *both* schemes and this test would
+    be vacuous, so the split is asserted.
+    """
+    cfg = short_config()
+    agent = make_agent(
+        "ppo_gru", cfg, base_seed=31, scenario="stationary",
+        num_envs=5, num_sequence_minibatches=2, update_epochs=3, learning_rate=0.0,
+    )
+    hp = agent.hparams
+    n_seq = hp.num_envs
+    mb_size = hp.minibatch_size()
+    n_mb = hp.minibatches_per_epoch(n_seq)
+    assert (mb_size, n_mb) == (3, 2)
+    assert mb_size * n_mb != n_seq, "the minibatch split must be unequal for this test to bite"
+
+    batch = agent.collect(make_vec(cfg, 31, "stationary", n_seq))
+    # A strong, known per-sequence advantage structure: sequence i earns reward i.
+    batch.rewards = (
+        torch.arange(n_seq, dtype=torch.float32)
+        .unsqueeze(1)
+        .expand(n_seq, batch.horizon())
+        .contiguous()
+    )
+
+    replay = torch.Generator().manual_seed(agent.shuffle_generator.initial_seed())
+    out = agent.update(batch)
+
+    # The closed form above is only valid while the behaviour policy is unchanged.
+    assert out["first_epoch_max_ratio_deviation"] < 1e-6
+    assert out["later_max_ratio_deviation"] < 1e-5
+
+    advantages, _returns = compute_gae(
+        batch.rewards, batch.values, batch.dones, batch.last_value, hp.gamma, hp.gae_lambda
+    )
+    flat = advantages.reshape(-1)
+    whole_batch_norm = (advantages - flat.mean()) / (flat.std(unbiased=False) + 1e-8)
+
+    losses: list[float] = []
+    for _epoch in range(hp.update_epochs):
+        perm = torch.randperm(n_seq, generator=replay)
+        for m in range(n_mb):
+            idx = perm[m * mb_size : (m + 1) * mb_size]
+            if idx.numel() == 0:
+                continue
+            losses.append(float(-whole_batch_norm[idx].mean()))
+    expected = sum(losses) / len(losses)
+
+    # Not vacuous: on this batch the two schemes genuinely give different answers.
+    assert abs(expected) > 1e-3, expected
+    assert abs(out["policy_loss"] - expected) < 1e-5, (out["policy_loss"], expected)
+    # Per-minibatch normalisation would have re-centred every minibatch to zero mean.
+    assert abs(out["policy_loss"]) > 1e-3, out["policy_loss"]
+
+
+# --------------------------------------------------------------------------- #
+# 14. M30 -- the critic loss is built from the recomputed values
+# --------------------------------------------------------------------------- #
+
+
+def test_the_critic_is_trained_by_the_recomputed_values():
+    """``batch.values`` is collected under ``no_grad``.
+
+    A critic loss built from it is a constant w.r.t. the parameters, so the critic
+    head -- which influences nothing else in the loss -- would receive no gradient
+    at all and would never move, while every reported diagnostic stayed finite and
+    plausible.
+    """
+    cfg = short_config()
+    agent = make_agent(
+        "ppo_gru", cfg, base_seed=41, scenario="stationary",
+        num_envs=4, num_sequence_minibatches=2, update_epochs=2, learning_rate=1e-2,
+    )
+    batch = agent.collect(make_vec(cfg, 41, "stationary", agent.hparams.num_envs))
+    before = {n: p.detach().clone() for n, p in agent.model.critic.named_parameters()}
+
+    agent.update(batch)
+
+    for name, p in agent.model.critic.named_parameters():
+        assert p.grad is not None, f"critic parameter {name} received no gradient at all"
+        assert float(p.grad.abs().max()) > 0.0, name
+        assert float((p.detach() - before[name]).abs().max()) > 0.0, name
+
+
+def test_value_loss_responds_to_the_critic_parameters():
+    """The same defect from the other side.
+
+    Shifting the critic head's output bias changes the *recomputed* values and
+    nothing else.  A value loss read off the stored rollout values would not notice,
+    so the reported ``value_loss`` would be unmoved.  ``learning_rate = 0`` keeps the
+    two updates comparable.
+    """
+    cfg = short_config()
+    agent = make_agent(
+        "ppo_gru", cfg, base_seed=43, scenario="stationary",
+        num_envs=4, num_sequence_minibatches=2, update_epochs=2, learning_rate=0.0,
+    )
+    batch = agent.collect(make_vec(cfg, 43, "stationary", agent.hparams.num_envs))
+
+    before = agent.update(batch)
+    with torch.no_grad():
+        agent.model.critic[-1].bias.add_(25.0)
+    after = agent.update(batch)
+
+    # The perturbation is confined to the value head ...
+    assert abs(after["policy_loss"] - before["policy_loss"]) < 1e-6
+    assert abs(after["entropy"] - before["entropy"]) < 1e-6
+    # ... so the value loss is the one thing that must respond, and strongly.
+    assert after["value_loss"] > 10.0 * before["value_loss"], (
+        before["value_loss"], after["value_loss"]
+    )

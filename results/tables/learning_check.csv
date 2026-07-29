@@ -6,7 +6,7 @@ bursty_irregular,ppo_cfc_dtblind,True,12,-68.291406,-69.770118,-1.478712,7.00449
 bursty_irregular,ppo_gru,True,12,-68.506436,-67.805427,0.701009,3.39671,-1.192744,2.503432,0.487305,1.0,False,no_detectable_difference,False
 bursty_irregular,ppo_ltc,True,12,-69.722682,-69.383842,0.33884,5.116939,-2.601247,2.908803,0.765625,1.0,False,no_detectable_difference,False
 bursty_irregular,ppo_ltc_cfc,True,12,-70.996392,-68.606837,2.389555,5.068046,-0.283603,5.129065,0.134766,1.0,False,no_detectable_difference,False
-bursty_irregular,ppo_mlp,True,12,-69.593432,-67.158596,2.434836,3.778586,0.294457,4.343306,0.052246,1.0,False,favours_a,False
+bursty_irregular,ppo_mlp,True,12,-69.593432,-67.158596,2.434836,3.778586,0.294457,4.343306,0.052246,1.0,False,no_detectable_difference,False
 bursty_irregular,ppo_transformer,True,12,-70.21944,-68.582513,1.636927,6.527542,-1.522191,5.568526,0.459961,1.0,False,no_detectable_difference,False
 bursty_irregular,random_policy,False,12,-70.000995,-70.000995,0.0,0.0,,,,,,not_applicable,
 interference_heavy,constant_channel,False,12,-88.365947,-88.365947,0.0,0.0,,,,,,not_applicable,
@@ -21,13 +21,13 @@ interference_heavy,ppo_transformer,True,12,-92.209084,-89.848074,2.36101,4.36277
 interference_heavy,random_policy,False,12,-89.299057,-89.299057,0.0,0.0,,,,,,not_applicable,
 irregular_dt,constant_channel,False,12,-51.449694,-51.449694,0.0,0.0,,,,,,not_applicable,
 irregular_dt,greedy_heuristic,False,12,21.077417,21.077417,0.0,0.0,,,,,,not_applicable,
-irregular_dt,ppo_cfc,True,12,-46.663674,-50.828057,-4.164383,6.118727,-7.244592,-0.620305,0.04541,1.0,False,favours_b,False
+irregular_dt,ppo_cfc,True,12,-46.663674,-50.828057,-4.164383,6.118727,-7.244592,-0.620305,0.04541,1.0,False,no_detectable_difference,False
 irregular_dt,ppo_cfc_dtblind,True,12,-52.124269,-50.820827,1.303442,7.256175,-2.614669,5.175735,0.566895,1.0,False,no_detectable_difference,False
 irregular_dt,ppo_gru,True,12,-51.860937,-51.723982,0.136956,4.644943,-2.24405,2.773464,0.925781,1.0,False,no_detectable_difference,False
 irregular_dt,ppo_ltc,True,12,-51.207563,-49.41069,1.796872,8.318479,-2.870227,6.183893,0.453125,1.0,False,no_detectable_difference,False
 irregular_dt,ppo_ltc_cfc,True,12,-50.918765,-50.459529,0.459236,9.068448,-4.484834,5.231406,0.860352,1.0,False,no_detectable_difference,False
 irregular_dt,ppo_mlp,True,12,-50.801148,-52.8814,-2.080252,5.517632,-5.04597,0.89658,0.211914,1.0,False,no_detectable_difference,False
-irregular_dt,ppo_transformer,True,12,-53.748127,-48.634344,5.113782,7.631232,1.095308,9.286269,0.038574,1.0,False,favours_a,False
+irregular_dt,ppo_transformer,True,12,-53.748127,-48.634344,5.113782,7.631232,1.095308,9.286269,0.038574,1.0,False,no_detectable_difference,False
 irregular_dt,random_policy,False,12,-50.815931,-50.815931,0.0,0.0,,,,,,not_applicable,
 non_stationary,constant_channel,False,12,-62.755419,-62.755419,0.0,0.0,,,,,,not_applicable,
 non_stationary,greedy_heuristic,False,12,17.687505,17.687505,0.0,0.0,,,,,,not_applicable,
@@ -43,7 +43,7 @@ stationary,constant_channel,False,12,-51.46129,-51.46129,0.0,0.0,,,,,,not_applic
 stationary,greedy_heuristic,False,12,19.781153,19.781153,0.0,0.0,,,,,,not_applicable,
 stationary,ppo_cfc,True,12,-49.493862,-52.801576,-3.307715,8.906149,-8.477159,1.15072,0.236328,1.0,False,no_detectable_difference,False
 stationary,ppo_cfc_dtblind,True,12,-50.43476,-49.689345,0.745415,6.763976,-2.95659,4.39289,0.702148,1.0,False,no_detectable_difference,False
-stationary,ppo_gru,True,12,-49.107929,-52.972068,-3.864139,5.919833,-6.9896,-0.585302,0.04834,1.0,False,favours_b,False
+stationary,ppo_gru,True,12,-49.107929,-52.972068,-3.864139,5.919833,-6.9896,-0.585302,0.04834,1.0,False,no_detectable_difference,False
 stationary,ppo_ltc,True,12,-50.577064,-51.054816,-0.477752,4.635391,-2.892052,2.056802,0.726562,1.0,False,no_detectable_difference,False
 stationary,ppo_ltc_cfc,True,12,-49.807062,-51.611391,-1.804329,4.364253,-4.190391,0.492456,0.179688,1.0,False,no_detectable_difference,False
 stationary,ppo_mlp,True,12,-50.023883,-49.887078,0.136804,8.693292,-4.290095,5.120473,0.954102,1.0,False,no_detectable_difference,False

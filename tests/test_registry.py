@@ -20,6 +20,7 @@ import pytest
 import torch
 from torch import nn
 
+from dsa.models.cells import RecurrentBlockBase
 from dsa.models import (
     ATTENTION_HEAD_CANDIDATES,
     MODEL_REGISTRY,
@@ -483,3 +484,118 @@ def test_dt_reaches_every_model_through_the_encoder(key):
         low, _, _ = model.step(obs, torch.full((6,), 0.25), state)
         high, _, _ = model.step(obs, torch.full((6,), 2.5), state)
     assert float((low - high).abs().max()) > 1e-5, key
+
+
+# ===========================================================================
+# M17 -- the capacity solver must be load-bearing
+# ===========================================================================
+# `solve_hidden_dim` is the public name of the capacity-matching solver, but the
+# registry reaches the width through `solve_width_and_heads`.  Nothing previously
+# tied the two together, so `solve_hidden_dim` could return a constant and the whole
+# suite stayed green: the function was documentation, not machinery.  These tests
+# make it machinery.
+
+
+def test_solved_width_is_the_width_the_registry_builds(summaries):
+    """Every built model's ``hidden_dim`` must be exactly what ``solve_hidden_dim``
+    returns for its spec, and that width must be what puts it on the shared
+    parameter budget.  A solver returning a constant fails on the first model."""
+    widths: dict[str, int] = {}
+    for key, spec in MODEL_REGISTRY.items():
+        solved = solve_hidden_dim(spec, OBS_DIM, ACTION_DIM)
+        assert solved == solve_width_and_heads(spec, OBS_DIM, ACTION_DIM)[0], key
+        assert summaries[key]["hidden_dim"] == solved, key
+
+        model = build_model(key, OBS_DIM, ACTION_DIM, seed=5)
+        assert model.hidden_dim == solved, (
+            f"{key}: built width {model.hidden_dim} != solved width {solved}"
+        )
+        error = abs(count_parameters(model) - PARAM_TARGET) / PARAM_TARGET
+        assert error <= PARAM_TOLERANCE, (key, solved, error)
+        widths[key] = solved
+
+    # Non-degenerate: capacity matching means different cell families need
+    # different widths, so the solver cannot be a constant function.
+    assert len(set(widths.values())) > 1, widths
+
+
+def test_no_single_width_can_capacity_match_every_model():
+    """Teeth for the test above.
+
+    If some constant ``H`` did put every model on budget, then a constant solver
+    would be harmless and the test above would be pinning nothing.  It does not:
+    for every candidate width -- including each model's own solved width -- at
+    least one other model lands outside ``PARAM_TOLERANCE``.
+    """
+    candidates = sorted(
+        {solve_hidden_dim(spec, OBS_DIM, ACTION_DIM) for spec in MODEL_REGISTRY.values()}
+        | {128}
+    )
+    assert len(candidates) > 1
+    for hidden in candidates:
+        off_budget = []
+        for key, spec in MODEL_REGISTRY.items():
+            kwargs = dict(spec.cell_kwargs)
+            if "attn" in spec.cell_kinds:
+                kwargs["num_heads"] = 1  # keep every width feasible for attention
+            model = RecurrentActorCritic(
+                OBS_DIM, ACTION_DIM, spec.cell_kinds, hidden, cell_kwargs=kwargs
+            )
+            if abs(count_parameters(model) - PARAM_TARGET) / PARAM_TARGET > PARAM_TOLERANCE:
+                off_budget.append(key)
+        assert off_budget, (
+            f"hidden_dim={hidden} puts every model on budget, so the per-model "
+            "solver would not be load-bearing"
+        )
+
+
+# ===========================================================================
+# M29b -- backpropagation through time, at the whole-model level
+# ===========================================================================
+
+
+def _reference_unroll_blocks(model) -> bool:
+    """True iff every block of ``model`` uses ``RecurrentBlockBase.unroll``."""
+    return all(type(b).unroll is RecurrentBlockBase.unroll for b in model.blocks)
+
+
+@pytest.mark.parametrize("key", KEYS)
+def test_bptt_reaches_the_first_timestep(key):
+    """``RecurrentActorCritic.unroll`` is the PPO update's only view of the policy.
+
+    If the hidden trajectory is detached inside it, the update still runs, still
+    produces finite losses and still moves every parameter -- it just stops being a
+    recurrent update.  The observable is that the observation at ``t=0`` no longer
+    influences the outputs at ``t=T-1``, a path that exists only through the carried
+    state.  ``ppo_mlp`` is the positive control: it is memoryless by construction, so
+    that influence is exactly zero for it and must be.
+    """
+    model = build_model(key, OBS_DIM, ACTION_DIM, seed=5)
+    model.train()
+    batch, length = 4, 6
+    g = _gen(51)
+    obs = torch.randn(batch, length, OBS_DIM, generator=g, requires_grad=True)
+    dt = torch.full((batch, length), 0.3)
+    state = tuple(s.clone().requires_grad_(True) for s in model.initial_state(batch))
+
+    logits, values, _ = model.unroll(obs, dt, state)
+    loss = logits[:, -1].sum() + values[:, -1].sum()
+    grads = torch.autograd.grad(loss, [obs, *state], allow_unused=True)
+    grad_obs, grad_state = grads[0], grads[1:]
+
+    assert float(grad_obs[:, -1].abs().max()) > 0.0, key  # the direct path is alive
+    memoryless = all(s == 0 for s in model.state_sizes)
+    if memoryless:
+        assert float(grad_obs[:, 0].abs().max()) == 0.0, key
+        return
+
+    assert float(grad_obs[:, 0].abs().max()) > 0.0, (
+        f"{key}: the observation at t=0 does not reach the output at t=T-1 -- "
+        "backpropagation through time has been severed"
+    )
+    if _reference_unroll_blocks(model):
+        # Blocks on the reference unroll additionally carry a live gradient path
+        # back to the state they were handed, which is what the PPO update replays.
+        for i, gs in enumerate(grad_state):
+            assert gs is not None, f"{key}: block {i} dropped its initial state from the graph"
+            assert float(gs.abs().max()) > 0.0, f"{key} block {i}"
