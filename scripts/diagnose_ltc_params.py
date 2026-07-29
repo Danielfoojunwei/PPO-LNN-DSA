@@ -46,19 +46,18 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from dsa.envs import SpectrumEnv, get_scenario  # noqa: E402
 from dsa.models import build_model  # noqa: E402
+from dsa.models.registry import MODEL_REGISTRY  # noqa: E402
 from dsa.seeding import derive_seed  # noqa: E402
 
 OUT = pathlib.Path(__file__).resolve().parents[1] / "results" / "diagnostics"
 
-MODELS = [
-    "ppo_mlp",
-    "ppo_gru",
-    "ppo_transformer",
-    "ppo_cfc",
-    "ppo_cfc_dtblind",
-    "ppo_ltc",
-    "ppo_ltc_cfc",
-]
+# Derived from the registry, never typed. A literal list of policy keys is the
+# shape of defect D4 -- the pre-rebuild analysis layer filtered random_policy out
+# of every published table with exactly such a list -- and tests/test_no_filter.py
+# rejects any list literal naming three or more registry keys. Deriving it also
+# means a newly registered model is diagnosed automatically instead of silently
+# skipped.
+MODELS = sorted(MODEL_REGISTRY)
 LR = 3.0e-4  # configs/suite_study_b.yaml
 
 
@@ -122,11 +121,12 @@ def grad_report(key: str, batch, seed: int) -> dict:
     total_sq = 0.0
     for name, p in model.named_parameters():
         g = 0.0 if p.grad is None else float(p.grad.norm())
+        w = float(p.detach().norm())
         total_sq += g * g
         groups[name] = {
             "grad_norm": g,
-            "weight_norm": float(p.detach().norm()),
-            "update_over_weight": (LR * g / float(p.norm())) if float(p.norm()) > 0 else None,
+            "weight_norm": w,
+            "update_over_weight": (LR * g / w) if w > 0 else None,
             "numel": p.numel(),
         }
 
