@@ -22,9 +22,20 @@ What it does now
 ----------------
 Three properties, in increasing order of strength.
 
-1. **Scope.**  Table cells and inline code spans are *scanned*.  Only fenced
-   code blocks are exempt, because those hold commands and sample output rather
-   than claims.
+1. **Scope.**  Table cells, inline code spans, link titles and the bodies of
+   non-machinery HTML comments are *scanned*.  Fenced code blocks are exempt
+   from the general metric scan, because they hold commands and sample output
+   rather than claims -- but they are separately checked for *claim-shaped*
+   lines, so a fabricated verdict cannot be laundered through a fake terminal
+   transcript.  An audit pasted
+
+       $ make check
+       Study B primary comparison P1: mean difference 12.474, p 0.001, verdict favours_a
+
+   into a fence -- a reader-visible inversion of the repository's headline null
+   -- and both gates stayed green.  A fenced line that names a verdict, a
+   p-value, a mean difference or a confidence interval alongside a number is now
+   a claim, and must carry an explicit ``not-a-claim`` marker to be exempt.
 
 2. **Exemption is generation, not citation.**  A metric literal is allowed only
    where a generator wrote it: inside a ``<!-- BEGIN GENERATED: name -->``
@@ -58,7 +69,13 @@ import pytest
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 #: Documents that may contain hand-written prose.  All of them are scanned.
-PROSE_FILES = [REPO_ROOT / "README.md"] + sorted((REPO_ROOT / "docs").glob("*.md"))
+#: The PR template is included because it is a document a contributor edits and
+#: a reviewer reads; it carries no metrics today, and this keeps it that way.
+PROSE_FILES = (
+    [REPO_ROOT / "README.md"]
+    + sorted((REPO_ROOT / "docs").glob("*.md"))
+    + [REPO_ROOT / ".github" / "pull_request_template.md"]
+)
 
 #: Generated end to end by scripts/make_report.py; every number in it is read
 #: from a CSV, which is the entire point of the file.
@@ -132,20 +149,73 @@ def scannable_lines(text: str) -> list[tuple[int, str]]:
 
         line = SPAN_RE.sub("", raw)
 
+        # Only the generated-value machinery is exempt, and SPAN_RE has already
+        # removed it above.  Every other HTML comment keeps its *body* in scope:
+        # stripping all comments made them unbounded storage for ungated numbers
+        # inside a file whose guarantee is stated absolutely.  An audit hid
+        # "P1 came out at 0.474 with CI [-5.184, 5.898]" in one and both gates
+        # stayed green.
         if in_comment:
             if "-->" not in line:
+                out.append((lineno, line))
                 continue
             line = line.split("-->", 1)[1]
             in_comment = False
-        line = re.sub(r"<!--.*?-->", "", line)
+        line = re.sub(r"<!--(.*?)-->", r"\1", line)
         if "<!--" in line:
-            line = line.split("<!--", 1)[0]
+            line = line.replace("<!--", " ")
             in_comment = True
 
-        line = re.sub(r"\]\([^)]*\)", "]()", line)  # link targets
+        # Strip the link *target* but keep any optional title, which GitHub
+        # renders as a hover tooltip.  The previous pattern consumed the whole
+        # parenthetical, so `[x](y "P1 mean difference 0.474")` was invisible.
+        line = re.sub(r"\]\(\s*<?[^)\s]*>?", "](", line)
         out.append((lineno, line))
 
     assert in_generated is None, "a generated region was never closed"
+    return out
+
+
+#: Words that turn a number inside a fence into a claim rather than a command.
+#: Deliberately narrow: a fence is allowed to print a shape, a duration or a
+#: parameter count, but not a verdict, a p-value, an interval or an effect size.
+CLAIM_SHAPED = re.compile(
+    r"verdict|favours_[ab]|no_detectable_difference|significant"
+    r"|p\s*[=:]|p-value|holm|mean difference|confidence interval|\bCI\b"
+    r"|cliff|effect size",
+    re.IGNORECASE,
+)
+
+#: Opt-out for a fence that legitimately shows one of those words with a number,
+#: e.g. documentation of the claims schema itself.
+NOT_A_CLAIM = "not-a-claim"
+
+
+def claim_shaped_fence_lines(text: str) -> list[tuple[int, str]]:
+    """Return fenced lines that read as a result rather than as a command.
+
+    Fences are exempt from the metric scan because they hold transcripts.  That
+    exemption is exactly what let an auditor paste a fabricated verdict into the
+    README as fake ``make check`` output.  A fence may still print numbers; it
+    may not print a number next to the vocabulary of a statistical result.
+    """
+    out: list[tuple[int, str]] = []
+    in_fence = False
+    fence_exempt = False
+
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        stripped = raw.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            if not in_fence:
+                fence_exempt = NOT_A_CLAIM in stripped
+            in_fence = not in_fence
+            continue
+        if not in_fence or fence_exempt:
+            continue
+        if NOT_A_CLAIM in raw:
+            continue
+        if CLAIM_SHAPED.search(raw) and METRIC_LITERAL.search(raw):
+            out.append((lineno, stripped))
     return out
 
 
@@ -180,6 +250,59 @@ def test_document_contains_no_ungenerated_metric(path: pathlib.Path):
         "derivable from results/, register it in docs/historical_figures.yaml with its "
         "provenance.\n" + "\n".join(found)
     )
+
+
+@pytest.mark.parametrize("path", PROSE_FILES, ids=lambda p: p.name)
+def test_no_fenced_block_states_a_result(path: pathlib.Path):
+    if not path.exists():
+        pytest.skip(f"{path.name} not present")
+    found = claim_shaped_fence_lines(path.read_text())
+    assert not found, (
+        "a fenced code block states what reads as a statistical result.\n"
+        "Fences are exempt from the metric scan because they hold commands and sample "
+        "output, which is precisely why a fabricated verdict pasted as fake `make check` "
+        "output survived both gates during an audit. If this line really is sample output "
+        f"rather than a claim, mark the fence or the line `{NOT_A_CLAIM}`.\n"
+        + "\n".join(f"{path.name}:{n}: {t}" for n, t in found)
+    )
+
+
+def test_the_fence_scanner_catches_a_fabricated_transcript():
+    """The auditor's exact attack: a fake verdict inverting the headline null."""
+    attack = (
+        "Run the gate:\n\n"
+        "```text\n"
+        "$ make check\n"
+        "Study B primary comparison P1: mean difference 12.474, p 0.001, verdict favours_a\n"
+        "```\n"
+    )
+    assert claim_shaped_fence_lines(attack), "the fabricated transcript was not caught"
+
+    # A fence that prints numbers without result vocabulary stays exempt, so
+    # ordinary command output does not become unfixable noise.
+    benign = "```console\n$ pytest -q\n432 passed in 221.87s\n```\n"
+    assert not claim_shaped_fence_lines(benign)
+
+    # And the explicit opt-out works, for fences that document the schema.
+    exempt = f"```yaml {NOT_A_CLAIM}\nverdict: favours_a\np_value: 0.001\n```\n"
+    assert not claim_shaped_fence_lines(exempt)
+
+
+def test_the_scan_covers_link_titles_and_comment_bodies():
+    """Two more places the auditor hid a number while both gates stayed green."""
+    title_attack = '[STUDY_B](docs/STUDY_B.md "Study B: P1 mean difference 0.474")\n'
+    assert offenders_in(title_attack, "t.md"), "a link title hid a metric"
+
+    comment_attack = "<!-- reviewer note: P1 came out at 0.474 with CI [-5.184, 5.898] -->\n"
+    assert offenders_in(comment_attack, "c.md"), "an HTML comment hid a metric"
+
+    # The generated-value machinery must still be exempt, or every document fails.
+    machinery = "P1 is <!--v:studyb.p1.diff-->0.474<!--/v--> here.\n"
+    assert not offenders_in(machinery, "m.md")
+
+    # Link *targets* must still be stripped: a version in a URL is not a claim.
+    target = "See [the v2.13.0 release](https://example.com/torch/2.13.0/notes).\n"
+    assert not offenders_in(target, "u.md")
 
 
 def test_the_scan_covers_table_cells_and_inline_code():
@@ -291,6 +414,63 @@ def test_a_corrupted_claim_is_caught_by_regeneration(tmp_path):
     )
 
 
+def test_a_corrupted_study_b_claim_is_caught_by_regeneration(tmp_path):
+    """The same negative control, for the second study's claims file.
+
+    Study A's gate going red proves nothing about Study B's numbers: they live in
+    a different file, are read under a different key namespace, and are cited by
+    different regions.  Falsify Study B's primary comparison in a copy of
+    ``results/`` and at least one committed document must stop matching.
+    """
+    results = REPO_ROOT / "results"
+    study_b = results / "study_b" / "claims.json"
+    if not study_b.exists():
+        pytest.skip("no committed results/study_b/claims.json")
+
+    fake = tmp_path / "results"
+    shutil.copytree(results, fake)
+    path = fake / "study_b" / "claims.json"
+    doc = json.loads(path.read_text())
+    hits = [c for c in doc["claims"] if c["claim_id"] == "CLAIM.PRIMARY.P1"]
+    assert hits, "CLAIM.PRIMARY.P1 is missing from results/study_b/claims.json"
+    hits[0]["value"] = float(hits[0]["value"]) - 9.0
+    path.write_text(json.dumps(doc, indent=2))
+
+    changed = [
+        doc_path.name
+        for doc_path in PROSE_FILES
+        if doc_path.exists() and _rendered(fake, REPO_ROOT, doc_path) != doc_path.read_text()
+    ]
+    assert changed, (
+        "corrupting Study B's CLAIM.PRIMARY.P1 changed no document -- Study B's primary "
+        "comparison is not actually generated from results/study_b/claims.json"
+    )
+
+
+def test_the_two_studies_share_no_value_keys():
+    """Study B must not be able to overwrite a Study A number, or vice versa.
+
+    Both studies publish a ``CLAIM.PRIMARY.P1`` and a ``CLAIM.RANK.*`` set with
+    different values.  If their vocabularies overlapped, a document citing one
+    would silently render the other's number.
+    """
+    module = _load_render_docs()
+    results = REPO_ROOT / "results"
+    if not (results / "study_b" / "all_runs.csv").exists():
+        pytest.skip("no committed Study B run")
+
+    values = module.build_values(results, REPO_ROOT)
+    study_b_keys = {k for k in values if k.startswith("studyb.")}
+    assert study_b_keys, "the Study B namespace is empty"
+    study_a_keys = set(values) - study_b_keys
+    assert not (study_b_keys & study_a_keys), "a key belongs to both studies"
+    # The same claim id exists in both studies with different values, and the
+    # two must render to different numbers.
+    assert "studyb.claim.CLAIM.PRIMARY.P1.value" in values
+    assert "claim.CLAIM.PRIMARY.P1.value" in values
+    assert values["studyb.claim.CLAIM.PRIMARY.P1.value"][0] != values["claim.CLAIM.PRIMARY.P1.value"][0]
+
+
 def test_every_inline_span_key_resolves():
     """An unknown key must fail loudly rather than silently render nothing."""
     results = REPO_ROOT / "results"
@@ -309,15 +489,22 @@ def test_every_inline_span_key_resolves():
 
 
 def test_the_scan_and_the_generator_cover_the_same_files():
-    """A document one covers and the other does not is a hole in the gate.
+    """Every generated document must be scanned; the reverse need not hold.
 
-    If the generator skipped a file the scan covers, that file could contain no
-    number at all; if the scan skipped a file the generator covers, a hand-typed
-    number there would only be caught by the byte-identity check, and only if it
-    happened to land inside a region.
+    A file the scan covers but the generator does not is safe: it simply may
+    contain no metric at all, which is the right rule for a document like the PR
+    template. The dangerous direction is the other one -- a file the generator
+    writes into but the scan skips, where a hand-typed number would be caught
+    only by the byte-identity check, and only if it happened to land inside a
+    region.
     """
     module = _load_render_docs()
-    assert sorted(module.DOC_PATHS(REPO_ROOT)) == sorted(PROSE_FILES)
+    generated = set(module.DOC_PATHS(REPO_ROOT))
+    scanned = set(PROSE_FILES)
+    assert generated <= scanned, sorted(str(p) for p in generated - scanned)
+
+    # Scan-only files are allowed, but each one is a deliberate choice.
+    assert scanned - generated == {REPO_ROOT / ".github" / "pull_request_template.md"}
 
 
 def test_historical_registry_entries_all_carry_provenance():

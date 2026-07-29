@@ -175,6 +175,29 @@ jobs:
             echo "no committed results/all_runs.csv yet; nothing to verify"
           fi
 
+      # Study B is a separate study in a separate tree with a separate
+      # pre-registration.  Its tables, claims and mechanistic endpoints are cited
+      # in README.md and docs/STUDY_B.md through the same generated regions, so
+      # they get the same gate.
+      - name: Regenerate Study B tables, claims and endpoints and diff
+        run: |
+          if [ -f results/study_b/all_runs.csv ]; then
+            python scripts/analyze.py --results-dir results/study_b --output-dir results/study_b \
+                                      --prereg configs/preregistration_study_b.yaml --check
+            python scripts/study_b_mechanistic.py --results-dir results/study_b --check
+            git diff --exit-code results/study_b
+          else
+            echo "no committed results/study_b/all_runs.csv yet; nothing to verify"
+          fi
+
+      # Study A must be byte-identical after Study B exists.  The whole point of
+      # keeping the two pre-registrations in two files is that analysing one
+      # study cannot rewrite the other's committed evidence.
+      - name: Assert Study B did not touch Study A
+        run: |
+          git diff --exit-code results/all_runs.csv results/claims.json results/tables \
+                                configs/preregistration.yaml
+
       # The P2 gate for the hand-written documents.  RESULTS.md was already
       # covered above; README.md was not, and an audit proved the consequence:
       # two falsified headline figures survived the entire suite because the
@@ -214,4 +237,31 @@ jobs:
             echo "ok: the falsified claim was rejected"
           else
             echo "no committed results/claims.json yet; nothing to verify"
+          fi
+
+      # The same negative control for Study B's claims file.  Study A's gate
+      # going red proves nothing about Study B's numbers: they live in a
+      # different file, are read under a different key namespace, and are cited
+      # by different regions.
+      - name: Prove the gate fails on a falsified Study B claim
+        run: |
+          if [ -f results/study_b/claims.json ]; then
+            rm -rf /tmp/tampered_b
+            cp -r results /tmp/tampered_b
+            python - <<'PY'
+          import json, pathlib
+          path = pathlib.Path("/tmp/tampered_b/study_b/claims.json")
+          doc = json.loads(path.read_text())
+          for claim in doc["claims"]:
+              if claim["claim_id"] == "CLAIM.PRIMARY.P1":
+                  claim["value"] = float(claim["value"]) - 9.0
+          path.write_text(json.dumps(doc, indent=2))
+          PY
+            if python scripts/render_docs.py --results-dir /tmp/tampered_b --check; then
+              echo "::error::render_docs --check passed against a falsified Study B claims.json"
+              exit 1
+            fi
+            echo "ok: the falsified Study B claim was rejected"
+          else
+            echo "no committed results/study_b/claims.json yet; nothing to verify"
           fi

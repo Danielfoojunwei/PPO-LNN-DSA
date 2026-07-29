@@ -284,8 +284,22 @@ and `tests/test_no_filter.py` enforces it both structurally (no hardcoded policy
 Every training run evaluates the model **twice on the identical evaluation stream**: once
 with freshly initialised weights and once after training. Both go into `all_runs.csv`.
 
-If a model does not beat its own initialisation, `RESULTS.md` says exactly that. If PPO
-does not beat `random_policy`, `RESULTS.md` says exactly that. That is the result.
+If a model does not beat its own initialisation, the generated report says exactly that. If
+PPO does not beat `random_policy`, the report says exactly that. That is the result.
+
+**This check is a precondition, not a footnote.** Two studies at budgets a factor of sixteen
+apart disagree on it — Study A's cells did not clear it and Study B's mostly did — and the
+disagreement propagates to nearly every architectural family. Any family whose arms did not
+clear the learning check is comparing initialisations, and the documents say so at the point
+of use. Study B additionally records, per run, the **first-update** values of the critic's
+explained variance and the rollout policy entropy alongside the final ones
+(`first_update_explained_variance`, `first_update_policy_entropy_mean`,
+`final_policy_entropy_mean`, `first_update_mean_rollout_return`,
+`final_mean_rollout_return` — added to `scripts/run_suite.py` as strictly additive columns,
+`NaN` for heuristics). Those support the descriptive mechanistic endpoints in
+[`STUDY_B.md`](STUDY_B.md) §6, whose one transferable warning is that **falling policy
+entropy alone does not establish learning**: it fell hardest in the two models that learned
+nothing at all.
 
 ---
 
@@ -328,10 +342,17 @@ topology and is not evidence about architecture**, and the report says so.
 
 Nothing, until the runs finish. If the pre-registered primary comparison comes out with an
 interval containing zero, the report states that the repository found **no detectable
-benefit from continuous-time state updates under irregular decision intervals at this
+benefit from continuous-time state updates under irregular decision intervals at that
 budget**, and the README says it on the first screen. If `random_policy` outranks a PPO
-model, the table shows it in the same font as everything else. If a model fails the
-learning check, the report says the model did not learn.
+model, the table shows it in the same font as everything else. If a model fails the learning
+check, the report says the model did not learn.
 
-The repository's value is a correct, seeded, capacity-matched, pre-registered,
-statistically honest benchmark — not a win.
+**And a conclusion is scoped to its budget.** Both studies are reported, neither is hidden,
+and every claim in the documentation names the budget that produced it. Where they disagree,
+the disagreement is reported as the finding rather than resolved in favour of the more
+flattering one. A result that moves when the step count moves is a fact about this
+benchmark, and burying either half of it would be the same failure as publishing a fabricated
+number — a document that does not match its artifacts.
+
+The repository's value is a correct, seeded, capacity-matched, pre-registered, statistically
+honest benchmark — not a win.

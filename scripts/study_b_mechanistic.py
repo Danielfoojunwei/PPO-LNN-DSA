@@ -18,6 +18,7 @@ Usage
 -----
     python scripts/study_b_mechanistic.py
     python scripts/study_b_mechanistic.py --results-dir results/study_b
+    python scripts/study_b_mechanistic.py --check   # committed table is current?
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -116,6 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--results-dir", type=pathlib.Path, default=REPO_ROOT / "results" / "study_b")
     parser.add_argument("--output", type=pathlib.Path, default=None)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="rebuild into a temporary file and diff against the committed table; write nothing",
+    )
     args = parser.parse_args(list(sys.argv[1:] if argv is None else argv))
 
     source = args.results_dir / "all_runs.csv"
@@ -123,6 +130,27 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"error: {source} not found; run scripts/run_study_b.py first")
     table = build(pd.read_csv(source))
     out = args.output or (args.results_dir / "mechanistic_endpoints.csv")
+
+    # ``--check`` is the same gate the tables and claims get: these endpoints are
+    # cited in README.md and docs/STUDY_B.md through generated regions, so a
+    # stale committed CSV would silently pin a stale number into the documents.
+    if args.check:
+        if not out.exists():
+            print(f"error: {out} does not exist; run this script without --check", file=sys.stderr)
+            return 1
+        with tempfile.TemporaryDirectory() as tmp:
+            candidate = pathlib.Path(tmp) / "mechanistic_endpoints.csv"
+            table.round(6).to_csv(candidate, index=False)
+            if candidate.read_bytes() != out.read_bytes():
+                print(
+                    f"error: {out} is stale -- it does not match a fresh build from {source}.\n"
+                    "Run `make analyze-study-b` and commit the result.",
+                    file=sys.stderr,
+                )
+                return 1
+        print(f"{out} is current ({len(table)} rows)")
+        return 0
+
     out.parent.mkdir(parents=True, exist_ok=True)
     table.round(6).to_csv(out, index=False)
     print(f"wrote {out} ({len(table)} rows) from {source}")

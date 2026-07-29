@@ -108,6 +108,20 @@ def build_report(results_dir: pathlib.Path, prereg_path: pathlib.Path | None = N
         "`claim_id` in `results/claims.json`, which names the source CSV and column."
     )
     add("")
+    # Scope banner.  This report covers exactly the study whose artifacts sit in
+    # the results directory it was built from; a reader who lands here first must
+    # not mistake one study's budget for the repository's whole evidence base.
+    add(
+        "**Scope: this is Study A, the low-budget study.** Its training budget is in the "
+        "provenance table below. A second study, Study B, re-runs the core of the same "
+        "matrix at sixteen times that budget under its own pre-registration "
+        "(`configs/preregistration_study_b.yaml`), and its conclusions differ — most of the "
+        "cells that learn nothing here do learn there. Study B's report is "
+        "[`docs/STUDY_B.md`](docs/STUDY_B.md) and its evidence is `results/study_b/`; "
+        "[`README.md`](README.md) reports both side by side. **Do not read the nulls below "
+        "as budget-independent.**"
+    )
+    add("")
 
     # ------------------------------------------------------------ provenance #
     add("## Provenance")

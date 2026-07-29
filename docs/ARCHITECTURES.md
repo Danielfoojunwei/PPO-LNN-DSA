@@ -197,9 +197,20 @@ Tests pin both sides of the contrast: the `ppo_cfc` cell's output must change wh
 `dt` changes, and the blind cell's output must be **bitwise identical** when only `dt`
 changes.
 
-This is the control that carries the pre-registered primary comparison, and it is the
-reason that comparison is capable of returning a clean null: there is no confound left to
-attribute a null to except the absence of an effect or the size of the budget.
+This is the control that carries the pre-registered primary comparison.
+
+**It is weaker than it looks, and Study B measured how weak.** `ppo_cfc` and
+`ppo_cfc_dtblind` are two *instantiations*: same shapes, same parameter count, same
+initialisation *distribution*, but independently drawn weights, and the blind cell is a
+subclass rather than a runtime switch on one set of weights. Study B ran the same contrast
+on a constant-`dt` scenario, where the two arms are informationally identical and the only
+admissible outcome is nothing, and detected a difference there
+([`STUDY_B.md`](STUDY_B.md) §2). That is a nuisance effect of exactly the size the primary
+comparison would have to exceed to be believed. So the honest statement is: the architecture
+is controlled to one factor, but the *experiment* is not, and until the control is rebuilt as
+a `dt`-gate toggle evaluated from a single parameterisation, a null here can be attributed
+to the absence of an effect, to the size of the budget, **or to the arms not being
+exchangeable**.
 
 ---
 
@@ -310,9 +321,17 @@ readings are (a) the effect is not large at this task and budget, or (b) the lea
 reached a regime where an architectural difference could express itself.
 
 Distinguishing (a) from (b) is not an architectural question, and the architecture layer
-does not answer it. The learner diagnostics published per run in `results/all_runs.csv` —
-critic explained variance, policy entropy in nats, gradient-step count, and the first-epoch
+does not answer it. The learner diagnostics published per run in each study's `all_runs.csv`
+— critic explained variance, policy entropy in nats, gradient-step count, and the first-epoch
 importance-ratio deviation — are what a reader should use to decide which reading applies.
+
+**Both readings have now been observed on the same code.** Study A's diagnostics say (b):
+the learner never left its initialisation, so its architectural nulls carry no architectural
+information. Study B's, at sixteen times the budget, say (a) for five of the seven
+architectures — and say (b) again for `ppo_ltc` and `ppo_ltc_cfc`, which do not train at all
+under this PPO configuration at any budget tested, so every contrast involving them still
+measures a non-learner. A third reading has to be added to the list above and is the subject
+of §5: (c) the two arms of the contrast are not exchangeable.
 The README's limitations section states which one this repository's evidence supports.
 
 ---
