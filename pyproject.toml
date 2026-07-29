@@ -17,6 +17,12 @@ include = ["dsa*"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+# The repo root must be importable for `import dsa` to resolve. The scripts in
+# scripts/ bootstrap sys.path themselves; the tests deliberately do not, so that
+# they import the package the same way a consumer would. Without this, bare
+# `pytest -q` fails at collection while `python -m pytest` succeeds, because
+# only the latter puts the working directory on sys.path.
+pythonpath = ["."]
 addopts = "-q --strict-markers --strict-config"
 markers = [
     "slow: exercises a training loop; excluded from the fast CI lane with -m 'not slow'",
