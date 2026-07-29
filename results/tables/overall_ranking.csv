@@ -1,0 +1,11 @@
+model,n_scenarios,mean_eval_return,mean_eval_return_std,mean_eval_return_sem,mean_eval_return_ci_low,mean_eval_return_ci_high,best_scenario,worst_scenario,rank
+greedy_heuristic,5,8.291204,17.88817,7.999833,-7.752653,19.880929,irregular_dt,interference_heavy,1
+ppo_transformer,5,-63.83044,16.740793,7.48671,-77.352216,-51.902403,irregular_dt,interference_heavy,2
+ppo_cfc,5,-64.177425,14.849187,6.640758,-76.721091,-53.890674,irregular_dt,interference_heavy,3
+ppo_mlp,5,-64.260138,15.442277,6.905996,-77.337544,-53.6056,stationary,interference_heavy,4
+ppo_ltc,5,-64.292528,15.74345,7.040685,-76.881634,-52.883196,irregular_dt,interference_heavy,5
+ppo_gru,5,-64.350753,14.583932,6.522133,-76.739862,-54.200757,irregular_dt,interference_heavy,6
+ppo_cfc_dtblind,5,-64.532924,16.074153,7.18858,-77.492086,-52.889636,stationary,interference_heavy,7
+ppo_ltc_cfc,5,-64.622228,15.862727,7.094027,-77.732432,-53.418782,irregular_dt,interference_heavy,8
+random_policy,5,-64.882496,15.95227,7.134072,-77.760069,-53.366107,irregular_dt,interference_heavy,9
+constant_channel,5,-65.039127,15.458747,6.913362,-77.544483,-53.715478,irregular_dt,interference_heavy,10

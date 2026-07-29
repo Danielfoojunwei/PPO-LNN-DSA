@@ -1,10 +1,21 @@
-numpy==2.2.6
-pandas==2.3.3
-scipy==1.14.1
+# Runtime dependencies, pinned to the versions verified on the development box.
+#
+# This list is enforced in BOTH directions by tests/test_requirements_cover_imports.py:
+#   * every third-party module imported anywhere in the tree is pinned here, and
+#   * every package pinned here is actually imported somewhere.
+#
+# The previous version of this file pinned scipy, gymnasium, tensorboard and
+# tqdm, all four of which had zero imports anywhere in the repository, and scipy
+# was not even installed. seaborn is likewise absent from this list because
+# nothing imports it -- matplotlib carries every figure.
+#
+# The statistics layer (bootstrap intervals, exact permutation tests,
+# Holm-Bonferroni, Cliff's delta) is implemented directly in numpy precisely so
+# that scipy is not needed.
+
+numpy==2.4.6
+pandas==3.0.5
 matplotlib==3.10.7
-seaborn==0.13.2
-gymnasium==1.0.0
-pyyaml==6.0.3
-tensorboard==2.18.0
-torch==2.5.1
-tqdm==4.67.1
+PyYAML==6.0.1
+torch==2.13.0
+pytest==9.1.1
